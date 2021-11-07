@@ -26,12 +26,12 @@ def byteToBits(bytes, to, bsize=125):
     return round(bytes / (bsize * a[to]), 2)
 
 
-# daily_test = subprocess.Popen('/usr/bin/speedtest -f json', shell=True, stdout=subprocess.PIPE).stdout.read()
-# data = json.loads(daily_test.decode('utf-8'))
+daily_test = subprocess.Popen('/usr/bin/speedtest -f json', shell=True, stdout=subprocess.PIPE).stdout.read()
+data = json.loads(daily_test.decode('utf-8'))
 
-f = open("samples/speedtest.json", "r")
-daily_test = f.read()
-data = json.loads(daily_test)
+# f = open("samples/speedtest.json", "r")
+# daily_test = f.read()
+# data = json.loads(daily_test)
 
 
 ping = str(round(data["ping"]["latency"], 2))
@@ -44,8 +44,8 @@ header = ["DateTime", "Ping", "Download", "Upload"]
 
 SpeedTest = namedtuple("SpeedTest", ("SCANID ping download upload"))
 
-csvToday = f'data/speedtest/daily/{time.strftime("%m-%d")}.csv'
-csvAnnual = f'data/speedtest/yearly/summary_{time.strftime("%y")}.csv'
+csvToday = f'/home/liam/speedtest/daily/{time.strftime("%m-%d")}.csv'
+csvAnnual = f'/home/liam/speedtest/yearly/summary_{time.strftime("%y")}.csv'
 
 TODAY, HISTORY = [], []
 TODAY.append(SpeedTest(SCANID, ping, download, upload))
