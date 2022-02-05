@@ -8,7 +8,7 @@ from utils import send, hasFlag, cPrint, SCANID
 
 DEBUG = hasFlag("d")
 
-newIP = get("https://api.ipify.org").text
+newIP = get("https://siira.io/ip").text
 
 if not re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", newIP):
     cPrint("API Error/Invalid IP Response")

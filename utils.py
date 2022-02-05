@@ -34,7 +34,6 @@ def send(template, subject, text, html = None):
     logo = open(f"data/logo.png.htm").read()
     msg = MIMEMultipart("alternative")
 
-    text = str(text)
     wrapper = open(f"templates/wrapper.html").read()
     body = open(f"templates/{template}.html").read()
     
@@ -45,8 +44,10 @@ def send(template, subject, text, html = None):
     wrapper = wrapper.replace("{desc}", desc)
 
     if template == "code":
+        text = str(text)
         wrapper = wrapper.replace("{text}", text)
     elif template == "table":
+        text = str(text)
         wrapper = wrapper.replace("{table}", html or text)
     elif template == "update":
         wrapper = wrapper.replace("{key1}", text["key1"])
@@ -54,7 +55,7 @@ def send(template, subject, text, html = None):
         wrapper = wrapper.replace("{key2}", text["key2"])
         wrapper = wrapper.replace("{val2}", text["val2"])
     elif template == "speed":
-        wrapper = wrapper.replace("{ping}", text.ping)
+        wrapper = wrapper.replace("{ping}", str(text.ping))
         wrapper = wrapper.replace("{upload}", str(text.upload))
         wrapper = wrapper.replace("{download}", str(text.download))
     else:
@@ -63,7 +64,7 @@ def send(template, subject, text, html = None):
     html = transform(wrapper)
 
     # Record the MIME types of both parts - text/plain and text/html.
-    part1 = MIMEText(text, "plain")
+    part1 = MIMEText(str(text), "plain")
     part2 = MIMEText(html, "html")
 
     # Attach parts into message container.

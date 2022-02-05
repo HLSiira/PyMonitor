@@ -44,8 +44,8 @@ header = ["DateTime", "Ping", "Download", "Upload"]
 
 SpeedTest = namedtuple("SpeedTest", ("SCANID ping download upload"))
 
-csvToday = f'/home/liam/speedtest/daily/{time.strftime("%m-%d")}.csv'
-csvAnnual = f'/home/liam/speedtest/yearly/summary_{time.strftime("%y")}.csv'
+csvToday = f'/home/liam/Artemis/SpeedTest/daily/{time.strftime("%m-%d")}.csv'
+csvAnnual = f'/home/liam/Artemis/SpeedTest/yearly/summary_{time.strftime("%y")}.csv'
 
 TODAY, HISTORY = [], []
 TODAY.append(SpeedTest(SCANID, ping, download, upload))
