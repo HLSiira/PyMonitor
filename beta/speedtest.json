@@ -1,0 +1,40 @@
+{
+   "type":"result",
+   "timestamp":"2021-05-15T20:14:48Z",
+   "ping":{
+      "jitter":2.601,
+      "latency":15.789999999999999
+   },
+   "download":{
+      "bandwidth":8131860,
+      "bytes":109749712,
+      "elapsed":15013
+   },
+   "upload":{
+      "bandwidth":6717305,
+      "bytes":89707944,
+      "elapsed":13315
+   },
+   "packetLoss":0,
+   "isp":"WideOpenWest",
+   "interface":{
+      "internalIp":"192.168.1.15",
+      "name":"eno1",
+      "macAddr":"F8:B1:56:E1:BC:7A",
+      "isVpn":false,
+      "externalIp":"24.42.177.114"
+   },
+   "server":{
+      "id":15775,
+      "name":"CarolinaConnect",
+      "location":"Lexington, SC",
+      "country":"United States",
+      "host":"speedtest.carolinaconnect.com",
+      "port":8080,
+      "ip":"162.213.116.4"
+   },
+   "result":{
+      "id":"a1331f54-5761-41ab-8a50-234f4433483c",
+      "url":"https://www.speedtest.net/result/c/a1331f54-5761-41ab-8a50-234f4433483c"
+   }
+}

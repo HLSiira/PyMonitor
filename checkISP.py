@@ -13,7 +13,6 @@ from utils import send, hasFlag, cPrint, SCANID
 
 DEBUG = hasFlag("d")
 
-
 def byteToHuman(bytes, to, bsize=1024):
     a = {"k": 1, "m": 2, "g": 3, "t": 4, "p": 5, "e": 6}
     r = float(bytes)
@@ -32,7 +31,6 @@ data = json.loads(daily_test.decode('utf-8'))
 # f = open("samples/speedtest.json", "r")
 # daily_test = f.read()
 # data = json.loads(daily_test)
-
 
 ping = str(round(data["ping"]["latency"], 2))
 download = byteToBits(data["download"]["bandwidth"], "m")
