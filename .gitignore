@@ -1,7 +1,4 @@
-archive/*
 data/*
 !data/README.md
 !data/logo.*
-examples/*
-samples/*
 __pycache__/*

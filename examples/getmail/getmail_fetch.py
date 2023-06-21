@@ -1,0 +1,237 @@
+#!/usr/bin/env python
+
+# docs/COPYING 2a + DRY: https://github.com/getmail6/getmail6
+# Please refer to the git history regarding who changed what and when in this file.
+
+import sys
+
+import os
+import socket
+import poplib
+import types
+from optparse import OptionParser
+
+try:
+    from getmailcore import __version__, __license__, \
+        retrievers, destinations, message, logging
+    from getmailcore.exceptions import *
+except ImportError as o:
+    sys.stderr.write('ImportError:  %s\n' % o)
+    sys.exit(127)
+
+log = logging.Logger()
+log.addhandler(sys.stderr, logging.WARNING)
+
+def blurb():
+    log.info('getmail version %s\n' % __version__)
+    log.info('Copyright (C) 1998-2021 Charles Cazabon and others. '
+             'Licensed under %s.\n'%__license__)
+
+#######################################
+class dummyInstance:
+    pass
+
+#######################################
+def error_exit(v, s):
+    sys.stderr.write(s + '\n')
+    sys.stderr.flush()
+    sys.exit(v)
+
+#######################################
+def go(retriever, destination, options, startmsg):
+    msgs_retrieved = 0
+    if options.verbose:
+        log.addhandler(sys.stdout, logging.INFO, maxlevel=logging.INFO)
+    blurb() # needed by docs/COPYING 2c
+    try:
+        if startmsg is not None:
+            destination.deliver_message(startmsg, False, False)
+        log.info('%s:\n' % retriever)
+        retriever.initialize(options)
+        destination.retriever_info(retriever)
+        nummsgs = len(retriever)
+        fmtlen = len(str(nummsgs))
+        for (msgnum, msgid) in enumerate(retriever):
+            msgnum += 1
+            size = retriever.getmsgsize(msgid)
+            log.info('  msg %*d/%*d (%d bytes) ...'
+                     % (fmtlen, msgnum, fmtlen, nummsgs, size))
+            try:
+                msg = retriever.getmsg(msgid)
+                msgs_retrieved += 1
+                destination.deliver_message(msg, False, False)
+                log.info(' delivered')
+                retriever.delivered(msgid)
+                if options.delete:
+                    retriever.delmsg(msgid)
+                    log.info(', deleted')
+                log.info('\n')
+
+            except getmailDeliveryError as o:
+                error_exit(7, 'Delivery error: %s' % o)
+
+        try:
+            retriever.quit()
+        except getmailOperationError as o:
+            log.warning('Operation error during quit (%s)\n' % o)
+
+    except socket.timeout as o:
+        error_exit(8, 'Timeout error: %s' % o)
+
+    except socket.gaierror as o:
+        error_exit(9, 'gaierror: %s' % o)
+
+    except socket.error as o:
+        error_exit(10, 'Socket error: %s' % o)
+
+    except poplib.error_proto as o:
+        error_exit(11, 'Protocol error: %s' % o)
+
+    except getmailCredentialError as o:
+        error_exit(13, 'Credential error: %s' % o)
+
+    except getmailOperationError as o:
+        error_exit(12, 'Operational error: %s' % o)
+
+    log.info('%d messages retrieved\n' % msgs_retrieved)
+
+#######################################
+def main():
+    try:
+        parser = OptionParser(
+            version='%%prog %s' % __version__,
+            usage='%prog [options] server username password destination'
+        )
+        parser.add_option('-q', '--quiet', action='store_false', dest='verbose',
+                          help='output only on error')
+        parser.add_option('-v', '--verbose', action='store_true',
+                          dest='verbose', default=True,
+                          help='output informational messages '
+                               '(default: verbose)')
+        parser.add_option('-m', '--message', action='store', dest='message',
+                          help='deliver message from FILE first',
+                          metavar='FILE')
+        parser.add_option('-p', '--port', action='store', type='int',
+                          dest='port', metavar='PORT', default=None,
+                          help='use server port PORT (default: POP: 110, '
+                               'POP3-over-SSL: 995)')
+        parser.add_option('-d', '--delete', action='store_true',
+                          dest='delete', default=False,
+                          help='delete messages after retrieval (default: no)')
+        parser.add_option('-t', '--timeout', action='store', type='int',
+                          dest='timeout', metavar='SECS', default=180,
+                          help='use timeout SECS (default: 180)')
+        parser.add_option('-a', '--apop', action='store_true',
+                          dest='apop', default=False,
+                          help='use APOP authentication (default: no)')
+        parser.add_option('-s', '--ssl', action='store_true',
+                          dest='ssl', default=False,
+                          help='use POP3-over-SSL (default: no)')
+        (options, args) = parser.parse_args(sys.argv[1:])
+        if len(args) != 4:
+            raise getmailOperationError('incorrect arguments; try --help'
+                                        % args)
+
+        def get(self, key, value=None):
+            return getattr(self, key, value)
+        options.get = types.MethodType(get, options, options.__class__)
+
+        msg = None
+        if options.message is not None:
+            try:
+                f = open(options.message)
+                msg = message.Message(fromfile=f)
+            except IOError as o:
+                error_exit(
+                    1,
+                    'Error reading message file "%s": %s' % (options.message, o)
+                )
+
+        instance = dummyInstance()
+
+        # Retriever
+        if options.ssl:
+            retriever_func = retrievers.BrokenUIDLPOP3SSLRetriever
+            port = options.port or 995
+        else:
+            retriever_func = retrievers.BrokenUIDLPOP3Retriever
+            port = options.port or 110
+        retriever_args = {
+            'getmaildir' : os.getcwd(),
+            'configparser' : instance,
+            'timeout' : options.timeout,
+            'server' : args[0],
+            'port' : port,
+            'username' : args[1],
+            'password' : args[2],
+            'use_apop' : options.apop
+        }
+        try:
+            retriever = retriever_func(**retriever_args)
+            retriever.checkconf()
+        except getmailOperationError as o:
+            error_exit(3, 'Error initializing retriever: %s' % o)
+
+        # Destination
+        destination = args[3].strip()
+        if destination.startswith('.') or destination.startswith('/'):
+            if destination.endswith('/'):
+                destination_func = destinations.Maildir
+                destination_args = {
+                    'path' : destination,
+                    'configparser' : instance,
+                }
+            else:
+                destination_func = destinations.Mboxrd
+                destination_args = {
+                    'path' : destination,
+                    'configparser' : instance,
+                }
+        elif destination.startswith('|'):
+            destination_func = destinations.MDA_external
+            parts = destination[1:].split()
+            cmd = parts[0]
+            arguments = str(tuple(parts[1:]))
+            destination_args = {
+                'path' : cmd,
+                'arguments' : arguments,
+                'allow_root_commands' : False,
+                'configparser' : instance,
+            }
+        else:
+            error_exit(4, 'Unknown destination type "%s"' % destination)
+
+        try:
+            destination = destination_func(**destination_args)
+        except getmailOperationError as o:
+            error_exit(
+                5, 'Error initializing destination "%s": %s' % (destination, o)
+            )
+
+        go(retriever, destination, options, msg)
+
+    except KeyboardInterrupt:
+        error_exit(6, 'Operation aborted by user (keyboard interrupt)')
+    except getmailOperationError as o:
+        error_exit(7, 'Operation error: %s' % o)
+    except getmailConfigurationError as o:
+        error_exit(8, 'Configuration error: %s' % o)
+    except Exception as o:
+        log.critical('\nException: please read docs/BUGS and include the '
+                     'following information in any bug report:\n\n')
+        log.critical('  getmail_fetch version %s\n' % __version__)
+        log.critical('  Python version %s\n\n' % sys.version)
+        log.critical('Unhandled exception follows:\n')
+        exc_type, value, tb = sys.exc_info()
+        import traceback
+        tblist = (traceback.format_tb(tb, None)
+                  + traceback.format_exception_only(exc_type, value))
+        if type(tblist) != list:
+            tblist = [tblist]
+        for line in tblist:
+            log.critical('  %s\n' % line.rstrip())
+        sys.exit(9)
+
+#######################################
+if __name__ == '__main__':
+    main()
