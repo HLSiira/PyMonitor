@@ -145,7 +145,6 @@ if len(comPacks) < 1:
 elif not DEBUG:
     cPrint(f"{subject}...Sending email...")
 
-
 sForm = "{:<24}| {:<16}| {:<16}\n"
 
 text = sForm.format("Package Name", "Current Version", "Latest Version")
@@ -169,4 +168,5 @@ if DEBUG:
     print(text)
 else:
     send("table", subject, text, html)
+
 exit(0)

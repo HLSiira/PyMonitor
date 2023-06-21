@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 # Use to inline: https://www.campaignmonitor.com/resources/tools/css-inliner/
 # Use to test emails: https://app.postdrop.io/
 # Use to check email: https://www.htmlemailcheck.com/check/
@@ -16,7 +15,7 @@ from datetime import datetime
 from premailer import transform
 
 
-host = socket.gethostname().upper()
+host = socket.gethostname().title()
 name = os.path.basename(sys.argv[0])
 
 desc = "Automated emails are carefully planned emails to be sent to subscribers at specific time intervals or as a response to the actions of users on a particular website. These emails can be sent individually or as part of a drip email campaign."
@@ -73,11 +72,12 @@ def send(template, subject, text, html = None):
     msg.attach(part1)
     msg.attach(part2)
 
-    msg["From"] = "Catalog879 <Catalog879@gmail.com>"
+    msg["From"] = "Catalog879 <Catalog@pearwasps.io>"
     msg["To"] = "Liam Siira <Liam@siira.io>"
-    msg["Subject"] = "Glenora: " + subject
+    msg["Subject"] = host + ": " + subject
     p = Popen(["/usr/sbin/sendmail", "-t", "-oi"], stdin=PIPE)
     p.communicate(msg.as_bytes())
-
+    os.system("run_keybase > /dev/null 2>&1")
+    os.system(f"keybase chat send pearwasps_io \"{host}: {subject}\" > /dev/null 2>&1")
 
 # send("TestingFunciton", "This is a test of an automated messaging script")
