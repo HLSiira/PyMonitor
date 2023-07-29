@@ -139,11 +139,11 @@ def isSecurityUpgrade(pack, version):
 (comPacks, secCount) = getAptUpdates()
 subject = f"{len(comPacks)}/{secCount} Updatable Package(s)"
 
-if len(comPacks) < 1:
+if len(comPacks) < 10:
     cPrint("No package updates.")
     exit(0)
 elif not DEBUG:
-    cPrint(f"{subject}...Sending email...")
+    cPrint(f"{subject}...Sending notification...")
 
 sForm = "{:<24}| {:<16}| {:<16}\n"
 

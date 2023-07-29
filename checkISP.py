@@ -42,8 +42,8 @@ header = ["DateTime", "Ping", "Download", "Upload"]
 
 SpeedTest = namedtuple("SpeedTest", ("SCANID ping download upload"))
 
-csvToday = f'/home/liam/Artemis/SpeedTest/daily/{time.strftime("%m-%d")}.csv'
-csvAnnual = f'/home/liam/Artemis/SpeedTest/yearly/summary_{time.strftime("%y")}.csv'
+csvToday = f'/home/liam/Artemis/SpeedTest/daily/{time.strftime("%Y%m%d")}.csv'
+csvAnnual = f'/home/liam/Artemis/SpeedTest/yearly/summary_{time.strftime("%Y")}.csv'
 
 TODAY, HISTORY = [], []
 TODAY.append(SpeedTest(SCANID, ping, download, upload))
@@ -56,6 +56,7 @@ try:
             next(readCSV)
 
             for row in readCSV:
+            	row = [item.strip() for item in row]
                 TODAY.append(SpeedTest(*row))
 except:
     pass
@@ -140,7 +141,8 @@ if float(download) < 60 or float(upload) < 5:
         print(speed)
     else:
         cPrint(f"Connection speeds outside of defined bounderies...Sending alert...")
-        send("speed", "Internet Speeds", speed)
+        subject = f'Internet Speeds: P{ping}, D{download}, U{upload} - {data["result"]["id"]}'
+        send("speed", subject, speed)
 else:
     cPrint(f"Connection speeds within defined bounderies")
 exit(0)

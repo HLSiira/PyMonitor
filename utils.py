@@ -30,7 +30,7 @@ def hasFlag(flg):
     return len(sys.argv) > 1 and flg in sys.argv[1]
 
 def send(template, subject, text, html = None):
-    if not hasFlag("k"):
+    if not hasFlag("k") and False:
         logo = open(f"data/logo.png.htm").read()
         msg = MIMEMultipart("alternative")
     
@@ -76,6 +76,7 @@ def send(template, subject, text, html = None):
         msg["From"] = "Catalog879 <Catalog@pearwasps.io>"
         msg["To"] = "Liam Siira <Liam@siira.io>"
         msg["Subject"] = host + ": " + subject
+        
         p = Popen(["/usr/sbin/sendmail", "-t", "-oi"], stdin=PIPE)
         p.communicate(msg.as_bytes())
     
