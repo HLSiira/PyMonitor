@@ -56,7 +56,7 @@ try:
             next(readCSV)
 
             for row in readCSV:
-            	row = [item.strip() for item in row]
+                row = [item.strip() for item in row]
                 TODAY.append(SpeedTest(*row))
 except:
     pass
@@ -135,13 +135,13 @@ if DEBUG or int(time.strftime("%H")) >= 23:
         if os.stat(f).st_mtime < tooOld and os.path.isfile(f):
             os.remove(f)
 
-if float(download) < 60 or float(upload) < 5:
+if float(download) < 400 or float(upload) < 20:
     speed = SpeedTest(SCANID, ping, download, upload)
     if DEBUG:
         print(speed)
     else:
         cPrint(f"Connection speeds outside of defined bounderies...Sending alert...")
-        subject = f'Internet Speeds: P{ping}, D{download}, U{upload} - {data["result"]["id"]}'
+        subject = f'ISP: P{ping}, D{download}, U{upload}'
         send("speed", subject, speed)
 else:
     cPrint(f"Connection speeds within defined bounderies")

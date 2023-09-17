@@ -33,5 +33,5 @@ find $TARGET/daily/* -mtime +90 -type f -delete
 
 echo -e "\tRCloning to Google Drive"
 TARGET="/home/liam/Artemis"
-rclone sync $TARGET liam-siira-drive:Archive/Artemis
+rclone sync $TARGET liam-siira-drive:Backup/Servers/Artemis
 echo -e "\tRClone finished"
