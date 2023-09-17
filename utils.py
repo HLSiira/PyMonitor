@@ -9,9 +9,6 @@ import socket
 import requests
 import json
 
-from subprocess import Popen, PIPE
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from datetime import datetime
 
 # from premailer import transform
