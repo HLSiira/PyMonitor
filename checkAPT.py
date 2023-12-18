@@ -139,7 +139,7 @@ def isSecurityUpgrade(pack, version):
 (comPacks, secCount) = getAptUpdates()
 subject = f"{len(comPacks)}/{secCount} Updatable Package(s)"
 
-if len(comPacks) < 10:
+if len(comPacks) < 1:
     cPrint("No package updates.")
     exit(0)
 elif not DEBUG:
