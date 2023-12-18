@@ -38,6 +38,10 @@ def saveDistUpgrade(cache, depcache):
         clean(cache, depcache)
     depcache.upgrade()
 
+def create_package_url(package_name):
+    # Modify this function to match your distribution's package tracking system
+    base_url = "https://packages.ubuntu.com/search?keywords="
+    return f"{base_url}{package_name}"
 
 def getAptUpdates():
     """
@@ -145,28 +149,21 @@ if len(comPacks) < 1:
 elif not DEBUG:
     cPrint(f"{subject}...Sending notification...")
 
-sForm = "{:<24}| {:<16}| {:<16}\n"
-
-text = sForm.format("Package Name", "Current Version", "Latest Version")
-text += ("=" * 60) + "\n"
-html = "<tr><th>Package Name</th><th>Current Version</th><th>Latest Version</th></tr>"
+text = "<b>Packages:</b>\n"
 
 for pack in comPacks:
-    pack["name"] = ("*" if pack["security"] else " ") + pack["name"]
-
+    url = create_package_url(pack["name"])
     name = f'{pack["name"][:21]}...' if len(pack["name"]) > 24 else pack["name"]
-    iVersion = pack["iVersion"][:17] if len(pack["iVersion"]) > 17 else pack["iVersion"]
-    nVersion = pack["nVersion"][:17] if len(pack["nVersion"]) > 17 else pack["nVersion"]
+    if pack["security"]:
+        text += f"\t- <font color='#ff4d3e'>{name}</font>\n"
+    else:
+        text += f"\t- {name}\n"
 
-    text += sForm.format(name, iVersion, nVersion)
-    html += f"<tr><td>{name}</td><td>{iVersion}</td><td>{nVersion}</td></tr>"
-
-html += f"<tr><td colspan=\"3\">* Updates for security packages</td></tr>"
-text += "\n * Updates for security packages"
+# text += "\n * Updates for security packages"
 
 if DEBUG:
-    print(text)
+    print(subject)
 else:
-    send("table", subject, text, html)
+    send(subject, text)
 
 exit(0)

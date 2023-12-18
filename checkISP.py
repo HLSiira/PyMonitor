@@ -142,7 +142,7 @@ if float(download) < 400 or float(upload) < 20:
     else:
         cPrint(f"Connection speeds outside of defined bounderies...Sending alert...")
         subject = f'ISP: P{ping}, D{download}, U{upload}'
-        send("speed", subject, speed)
+        send(subject, speed)
 else:
     cPrint(f"Connection speeds within defined bounderies")
 exit(0)
