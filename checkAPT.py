@@ -149,15 +149,15 @@ if len(comPacks) < 1:
 elif not DEBUG:
     cPrint(f"{subject}...Sending notification...")
 
-text = "<b>Packages:</b>\n"
+text = "<b>Packages:</b>"
 
 for pack in comPacks:
     url = create_package_url(pack["name"])
     name = f'{pack["name"][:21]}...' if len(pack["name"]) > 24 else pack["name"]
     if pack["security"]:
-        text += f"\t- <font color='#ff4d3e'>{name}</font>\n"
+        text += f"\n\t- <font color='#ff4d3e'>{name}</font>"
     else:
-        text += f"\t- {name}\n"
+        text += f"\n\t- {name}"
 
 # text += "\n * Updates for security packages"
 
