@@ -135,14 +135,14 @@ if DEBUG or int(time.strftime("%H")) >= 23:
         if os.stat(f).st_mtime < tooOld and os.path.isfile(f):
             os.remove(f)
 
-if float(download) < 400 or float(upload) < 20:
+if True or float(download) < 400 or float(upload) < 20:
     speed = SpeedTest(SCANID, ping, download, upload)
     if DEBUG:
         print(speed)
     else:
         cPrint(f"Connection speeds outside of defined bounderies...Sending alert...")
         subject = f'ISP: P{ping}, D{download}, U{upload}'
-        send(subject, speed)
+        send("ISP Speed Alert", subject)
 else:
     cPrint(f"Connection speeds within defined bounderies")
 exit(0)
