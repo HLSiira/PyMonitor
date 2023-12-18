@@ -29,14 +29,15 @@ def load_credentials(filename="data/config.json"):
         data = json.load(f)
     return data["user_key"], data["api_token"]
     
-def send(template, subject, text, html = None):
+def send(subject, message):
     user_key, api_token = load_credentials()
     
     data = {
         'token': api_token,
         'user': user_key,
-        'message': subject,
-        'title': host,
+        'message': message,
+        'title': f"{host}: {subject}",
+        'html' : 1,
         # 'monospace': 1,
         'url': None,
         'url_title': None,

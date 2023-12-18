@@ -39,7 +39,7 @@ if newIP != oldIP:
     if DEBUG:
         print(update)
     else:
-        send("update", f"IP Update: {newIP}", update)
+        send("IP Change", f"IP Address has changed from {oldIP} to {newIP}")
 
 else:
     cPrint(f"No change, public IP address is {newIP}")

@@ -167,5 +167,5 @@ text += "\n * Pre-fail attributes, replace the disk if > 0"
 if DEBUG:
     print(text)
 else:
-    send("table", "RAID Alert", text, html)
+    send("RAID Alert", text)
 exit(0)
