@@ -19,7 +19,7 @@ import subprocess
 import xml.etree.ElementTree as ET
 
 import json
-from utils import send, hasFlag, cPrint, SCANID
+from utils import send, hasFlag, cPrint, SCANID, formatIP
 
 DEBUG = hasFlag("d")
 VERBOSE = hasFlag("v")
@@ -27,7 +27,7 @@ NOSCAN = hasFlag("n")
 
 # This function will launch NMAP and scan the network mask you provided.
 def getNmapScan(SCANID, netRange):
-    scanlog = "samples/scanlog.xml"
+    scanlog = "data/scanlog.xml"
     if DEBUG:
         f = open("samples/devices.mac", "w")
 
@@ -52,11 +52,13 @@ def getNmapScan(SCANID, netRange):
                 state = attrib.attrib["state"]
             if attrib.tag == "address":
                 if attrib.attrib["addrtype"] == "mac":
-                    mac = attrib.attrib["addr"]
+                     mac = attrib.attrib["addr"]
                 if attrib.attrib["addrtype"] == "ipv4":
-                    ip = attrib.attrib["addr"]
+                    ip = formatIP(attrib.attrib["addr"])
                 if "vendor" in attrib.attrib:
                     vendor = attrib.attrib["vendor"]
+                else:
+                    vendor = "unknown"
         if state == "down":
             continue
 
@@ -72,65 +74,73 @@ def getNmapScan(SCANID, netRange):
         f.close
     return scan
 
+netRange = "192.168.1.1/24"
+scan = getNmapScan(SCANID, netRange)  # SCAN NETWORK
+try:
+   os.makedirs("data/devices", exist_ok=True)
+except Exception as e:
+        cPrint(f"Error: {e}")
+
 
 # This function will check the last scan for any devices that are not listed in the whitelist.
-def validateScan(SCANID, devices, scan):
-    iCount = {}
+def validateScan(SCANID, scan):
+    newDevices = {}
 
     for mac in scan:
-        if mac not in devices or devices[mac]["status"] != "allowed":
-            device = scan[mac]
+        path = f"data/devices/{mac}"
+        device = {}
+
+        if os.path.exists(path):
+            f = open(path)
+            device = json.load(f)
+        else:
+            device["mac"] = mac
             device["name"] = "unknown"
             device["status"] = "intruder"
             device["fSeen"] = SCANID
-            devices[mac] = device
+            device["ip"] = []
 
-            alert = f'Intruder detected: IP:{devices[mac]["ip"]}, VENDOR:{devices[mac]["vendor"]}'
-            iCount[mac] = device
-            if not DEBUG:
-                cPrint(alert)
-        else:
-            devices[mac]["ip"] = scan[mac]["ip"]
-            devices[mac]["lSeen"] = scan[mac]["lSeen"]
-            devices[mac]["vendor"] = scan[mac]["vendor"]
+        ip = scan[mac]["ip"]
+        if ip not in device["ip"]:
+            device["ip"].insert(0,ip)
 
-    # now write output to a file
-    f = open(database, "w")
-    # magic happens here to make it pretty-printed
-    f.write(json.dumps(devices, indent=4, sort_keys=True))
-    f.close()
-    return iCount
+        device["lSeen"] = scan[mac]["lSeen"]
 
+        if not "vendor" in device:
+            device["vendor"] = scan[mac]["vendor"]
 
-# Opening JSON file
-database = "data/devices.json"
-devices = {}
-if os.path.exists(database):
-    f = open(database)
-    devices = json.load(f)
+        if not device["status"] or device["status"] != "allowed":
+            cPrint(f'New device detected: {mac} by {scan[mac]["vendor"]} on {scan[mac]["ip"]}')
+            f = open(path, "w")
+            f.write(json.dumps(device, indent=4, sort_keys=True))
+            f.close()
+            newDevices[mac] = device
 
-netRange = "192.168.1.1/24"
-scan = getNmapScan(SCANID, netRange)  # SCAN NETWORK
-iCount = validateScan(SCANID, devices, scan)
+        #cPrint(f"{mac} called {device['name']}")
 
-if len(iCount) > 0:
+    return newDevices
+
+newDevices = validateScan(SCANID, scan)
+
+if len(newDevices) > 0:
     cPrint("New devices found, sending notification...")
 
     text = "<b>New devices:</b>"
-    
-    for k, v in iCount.items():
-        ip, vendor = v["ip"], v["vendor"]
-        vendor = (vendor[:39] + "...") if len(vendor) > 41 else vendor
-        text += f"\n\t -{ip}\t {vendor}/{k}"
-    
-    subject = f"{len(iCount)}New device(s) detected"
-    
+
+    for k, v in newDevices.items():
+        ip, vendor = v["ip"][0], v["vendor"]
+        if vendor == "unknown": vendor = f"<font color='#ff4d3e'>{vendor}</font>"
+        #vendor = (vendor[:39] + "...") if len(vendor) > 41 else vendor
+        text += f"\n\t -{k} by {vendor} on {ip}"
+
+    subject = f"{len(newDevices)} new device(s) detected"
+
     if DEBUG:
         print(text)
     else:
         send(subject,text)
     exit(0)
 
-elif not DEBUG:
+else:
     cPrint("No new devices found.")
     exit(0)

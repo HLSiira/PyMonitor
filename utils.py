@@ -23,15 +23,22 @@ def cPrint(msg):
 
 def hasFlag(flg):
     return len(sys.argv) > 1 and flg in sys.argv[1]
-    
-def load_credentials(filename="data/config.json"):
+
+def formatIP(ip):
+    octets = ip.split('.')
+    # Pad each octet with zeros to make it three digits long
+    octets[3] = octets[3].zfill(3)
+    # Join the octets back into a formatted IP address
+    return ".".join(octets)
+
+def loadCredentials(filename="data/config.json"):
     with open(filename, "r") as f:
         data = json.load(f)
     return data["user_key"], data["api_token"]
-    
+
 def send(subject, message):
-    user_key, api_token = load_credentials()
-    
+    user_key, api_token = loadCredentials()
+
     data = {
         'token': api_token,
         'user': user_key,
