@@ -113,25 +113,24 @@ netRange = "192.168.1.1/24"
 scan = getNmapScan(SCANID, netRange)  # SCAN NETWORK
 iCount = validateScan(SCANID, devices, scan)
 
-if len(iCount) < 1:
-    cPrint("No Intruders found")
+if len(iCount) > 0:
+    cPrint("New devices found, sending notification...")
+
+    text = "<b>New devices:</b>"
+    
+    for k, v in iCount.items():
+        ip, vendor = v["ip"], v["vendor"]
+        vendor = (vendor[:39] + "...") if len(vendor) > 41 else vendor
+        text += f"\n\t -{ip}\t {vendor}/{k}"
+    
+    subject = f"{len(iCount)}New device(s) detected"
+    
+    if DEBUG:
+        print(text)
+    else:
+        send(subject,text)
     exit(0)
+
 elif not DEBUG:
-    cPrint("Intruder Alert, sending notice...")
-
-sForm = "{:<18}| {:<16}| {:<42}"
-text = sForm.format("MAC Address", "IP Address", "Vendor") + "\n"
-text += ("=" * 60) + "\n"
-html = "<tr><th>MAC Address</th><th>IP Address</th><th>Vendor</th></tr>"
-
-for k, v in iCount.items():
-    ip, vendor = v["ip"], v["vendor"]
-    vendor = (vendor[:39] + "...") if len(vendor) > 41 else vendor
-    text += sForm.format(k, ip, vendor) + "\n"
-    html += f"<tr><td>{k}</td><td>{ip}</td><td>{vendor}</td></tr>"
-
-if DEBUG:
-    print(text)
-else:
-    send("table", "Network Intruder Alert", text, html)
-exit(0)
+    cPrint("No new devices found.")
+    exit(0)

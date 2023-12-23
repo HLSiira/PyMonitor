@@ -24,7 +24,6 @@ except:
     pass
 
 if newIP != oldIP:
-    cPrint(f"IP Change, Emailing new IP({newIP})...")
 
     f = open("data/ipaddress", "w")
     f.write(newIP)
@@ -36,12 +35,13 @@ if newIP != oldIP:
         "val2": newIP,
     }
 
+    cPrint(f"IP change({newIP}), sending notification...")
     if DEBUG:
         print(update)
     else:
-        send("IP Change", f"IP Address has changed from {oldIP} to {newIP}")
+        send("IP address changes", f"IP Address has changed from {oldIP} to {newIP}")
 
 else:
-    cPrint(f"No change, public IP address is {newIP}")
+    cPrint(f"No change, public IP address is {newIP}.")
 
 exit(0)

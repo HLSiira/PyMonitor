@@ -147,7 +147,7 @@ if len(comPacks) < 1:
     cPrint("No package updates.")
     exit(0)
 elif not DEBUG:
-    cPrint(f"{subject}...Sending notification...")
+    cPrint(f"{subject}, Sending notification...")
 
 text = "<b>Packages:</b>"
 

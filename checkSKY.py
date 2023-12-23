@@ -96,12 +96,12 @@ if special_events:
     messages.extend(special_events)
 
 if messages:
-    cPrint(f"Events detected, sending alert...")
+    cPrint(f"Events detected, sending notification...")
     if DEBUG:
         print(update)
     else:
         send("Astronomical Event", "\n".join(messages))
 else:
-    cPrint(f"No events")
+    cPrint(f"No astrological events.")
 
 exit(0)
