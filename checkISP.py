@@ -135,7 +135,7 @@ if DEBUG or int(time.strftime("%H")) >= 23:
         if os.stat(f).st_mtime < tooOld and os.path.isfile(f):
             os.remove(f)
 
-if True or float(download) < 400 or float(upload) < 20:
+if float(download) < 400 or float(upload) < 20:
     speed = SpeedTest(SCANID, ping, download, upload)
     if DEBUG:
         print(speed)
