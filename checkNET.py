@@ -1,50 +1,50 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 # Device intrusion script
-
 # This script will scan the network of your choice and will alert you of devices not present in the whitelist. The whitelist is a list of MAC address that YOU trust. Every time you run the detection script, a list of detected devices will be written in "devices.mac".
 # By default, all devices will show as untrusted.
 
-# Edit devices.mac if needed and run the script below. It will mark as trusted every devices in the list.
-
-# sudo ./trust-devices.py  data.db devices.mac
-
-# Author: Luc Raymond lucraymond@gmail.com
-# License: MIT
-# Requirements : nmap and python
-# Privileges: sudo (for nmap to get the mac address)
-
-import os, sys
+import os
+import sys
 import subprocess
 import xml.etree.ElementTree as ET
-
 import json
+import csv
+from collections import namedtuple
 from utils import send, hasFlag, cPrint, SCANID, formatIP
 
 DEBUG = hasFlag("d")
-VERBOSE = hasFlag("v")
 NOSCAN = hasFlag("n")
 
-# This function will launch NMAP and scan the network mask you provided.
-def getNmapScan(SCANID, netRange):
-    scanlog = "data/scanlog.xml"
-    if DEBUG:
-        f = open("samples/devices.mac", "w")
+scanpath = "data/scanlog.xml"
+datapath = "data/devices.csv"
+netRange = "192.168.1.1/24"
 
-    # for debugging, if the scanlog already exists, don"t scan again
-    if not (NOSCAN and os.path.exists(scanlog)):
-        output = subprocess.run(
-            ["sudo", "nmap", "-v", "-sn", netRange, "-oX", scanlog], capture_output=True
-        )
-        if output.returncode != 0:
+##############################################################################80
+# Launch NMAP and scan the network mask provided
+##############################################################################80
+def getNmapScan(netRange, scanlog):
+
+    # Run nmap scan of netRange, save xml to scanlog file
+    if not NOSCAN:
+        try:
+            subprocess.run(["sudo", "nmap", "-v", "-sn", netRange, "-oX", scanlog], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error running nmap: {e}")
             exit(127)
 
-    root = (ET.parse(scanlog)).getroot()
+    # Open scanlog file and find root
+    try:
+        root = ET.parse(scanlog).getroot()
+    except ET.ParseError as e:
+        print(f"Error parsing scanlog: {e}")
+        exit(1)
+
     hosts = root.findall("./host")
     if not hosts:
-        return
+        return {}
 
-    scan = {}
+    scan = []
     for child in hosts:
         state = mac = ip = vendor = ""
         for attrib in child:
@@ -66,81 +66,110 @@ def getNmapScan(SCANID, netRange):
             continue
 
         if DEBUG:
-            f.write(f"{mac}\t{vendor}\t{ip}\n")
+            cPrint(f"{mac}\t{vendor}\t{ip}")
 
-        scan[mac] = {"name": vendor, "vendor": vendor, "ip": ip, "lSeen": SCANID}
+        scan.append({"mac": mac, "vendor": vendor, "ip": ip, "lSeen": SCANID})
 
-    if DEBUG:
-        f.close
     return scan
 
-netRange = "192.168.1.1/24"
-scan = getNmapScan(SCANID, netRange)  # SCAN NETWORK
-try:
-   os.makedirs("data/devices", exist_ok=True)
-except Exception as e:
-        cPrint(f"Error: {e}")
 
+Device = namedtuple("Device", ("Status Name MAC IP FirstHeard LastHeard Vendor"))
+##############################################################################80
+# Function to load device databas from CSV
+##############################################################################80
+def loadDatabase(path):
+    database = {}
+    if os.path.exists(path):
+        with open(path, mode='r') as f:
+            # Create a DictReader, and then strip whitespace from the field names
+            readCSV = csv.DictReader((line.replace('\0', '') for line in f), delimiter='|')
+            readCSV.fieldnames = [name.strip() for name in readCSV.fieldnames]
 
-# This function will check the last scan for any devices that are not listed in the whitelist.
-def validateScan(SCANID, scan):
-    newDevices = {}
+            # readCSV = csv.DictReader(f, delimiter="|")
 
-    for mac in scan:
+            for row in readCSV:
+                cleaned_row = {k: v.strip() for k, v in row.items()}
+                database[cleaned_row['MAC']] = Device(**cleaned_row)
+                # row = [item.strip() for item in row]
+                # database[row['mac']] = Device(**row)
+    return database
+    
+##############################################################################80
+# Function to save device database to CSV
+##############################################################################80
+def saveDatabase(path, data):
+    header = ["Status", "Name", "MAC", "IP", "FirstHeard", "LastHeard", "Vendor"]
+
+    with open(path, "w") as f:
+        writer = csv.writer(f)
+        header = "{:^10}|{:^30}|{:^17}|{:^15}|{:^12}|{:^12}|{:^30}".format(*header).split("|", 0)
+        writer.writerow(header)
+    
+        for mac, details in data.items():
+            # details = [device.status, device.name, device.mac, device.ip, device.fSeen, device.lSeen, device.vendor]
+            details = "{:^10}|{:<30}|{:>17}|{:^15}|{:>12}|{:>12}|{:<30}".format(*details).split("|", 0)
+            writer.writerow(details)
+            
+            
+        # for device in data.values():  # Assuming data is a dictionary with devices
+        #     # Directly pass the tuple's attributes as a list
+        #     writer.writerow(device_data)
+            
+    return True
+
+##############################################################################80
+# Parse scan to determine new devices, update devices.csv
+##############################################################################80
+def processScan(scan, database):
+    for device in scan:
+        mac = device["mac"]
+        ip = device["ip"]
+        device = database.get(mac, Device(Status="intruder", Name="unknown", MAC=mac, IP=ip, FirstHeard=SCANID, LastHeard=SCANID, Vendor="unknown"))
+
+        # Check if the scan information exists on a separate json
         path = f"data/devices/{mac}"
-        device = {}
-
         if os.path.exists(path):
-            f = open(path)
-            device = json.load(f)
-        else:
-            device["mac"] = mac
-            device["name"] = "unknown"
-            device["status"] = "intruder"
-            device["fSeen"] = SCANID
-            device["ip"] = []
+            with open(path) as f:
+                d = json.load(f)
+                oldData = Device(Status=d["status"], Name=d["name"], MAC=d["mac"], IP=ip, FirstHeard=SCANID, LastHeard=SCANID, Vendor=d["vendor"])
+                device = oldData
+                
+        # Update data to the latest scan
+        device = device._replace(LastHeard=SCANID, IP=ip)
+        
+        # Update the database with the new or updated device
+        database[mac] = device                
 
-        ip = scan[mac]["ip"]
-        if ip not in device["ip"]:
-            device["ip"].insert(0,ip)
+    return database
 
-        device["lSeen"] = scan[mac]["lSeen"]
-
-        if not "vendor" in device:
-            device["vendor"] = scan[mac]["vendor"]
-
-        if not device["status"] or device["status"] != "allowed":
-            cPrint(f'New device detected: {mac} by {scan[mac]["vendor"]} on {scan[mac]["ip"]}')
-            f = open(path, "w")
-            f.write(json.dumps(device, indent=4, sort_keys=True))
-            f.close()
-            newDevices[mac] = device
-
-        #cPrint(f"{mac} called {device['name']}")
-
-    return newDevices
-
-newDevices = validateScan(SCANID, scan)
-
-if len(newDevices) > 0:
-    cPrint("New devices found, sending notification...")
-
+##############################################################################80
+# Pretty print device details
+##############################################################################80
+def processNewDevices(database):
+    newDevices = 0
     text = "<b>New devices:</b>"
+    for mac, device in database.items():
+        if device.Status != "allowed":
+            cPrint(f'New device detected: {device.MAC} by {device.Vendor} on {device.IP}')
+            newDevices += 1
+            ip, vendor = device.IP, device.Vendor
+            vendor = f"<font color='#ff4d3e'>{vendor}</font>" if vendor == "unknown" else vendor
+            text += f"\n\t - {mac} by {vendor} on {ip}"
 
-    for k, v in newDevices.items():
-        ip, vendor = v["ip"][0], v["vendor"]
-        if vendor == "unknown": vendor = f"<font color='#ff4d3e'>{vendor}</font>"
-        #vendor = (vendor[:39] + "...") if len(vendor) > 41 else vendor
-        text += f"\n\t -{k} by {vendor} on {ip}"
-
-    subject = f"{len(newDevices)} new device(s) detected"
-
-    if DEBUG:
-        print(text)
+    if newDevices:
+        cPrint("New devices found, sending notification...")
+        subject = f"{newDevices} new device(s) detected"
+        send(subject, text) if not DEBUG else print(text)
     else:
-        send(subject,text)
-    exit(0)
+        cPrint("No new devices found.")
 
-else:
-    cPrint("No new devices found.")
-    exit(0)
+
+##############################################################################80
+# Being Main execution
+##############################################################################80
+scan = getNmapScan(netRange, scanpath)
+data = loadDatabase(datapath)
+
+data = processScan(scan, data)
+processNewDevices(data)
+saveDatabase(datapath, data)
