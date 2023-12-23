@@ -28,7 +28,8 @@ def getNmapScan(netRange, scanlog):
     # Run nmap scan of netRange, save xml to scanlog file
     if not NOSCAN:
         try:
-            subprocess.run(["sudo", "nmap", "-v", "-sn", netRange, "-oX", scanlog], check=True)
+            subprocess.run(["sudo", "nmap", "-v", "-sn", netRange, "-oX", scanlog], check=True, capture_output=True)
+
         except subprocess.CalledProcessError as e:
             print(f"Error running nmap: {e}")
             exit(127)
@@ -85,20 +86,16 @@ def loadDatabase(path):
             readCSV = csv.DictReader((line.replace('\0', '') for line in f), delimiter='|')
             readCSV.fieldnames = [name.strip() for name in readCSV.fieldnames]
 
-            # readCSV = csv.DictReader(f, delimiter="|")
-
             for row in readCSV:
                 cleaned_row = {k: v.strip() for k, v in row.items()}
                 database[cleaned_row['MAC']] = Device(**cleaned_row)
-                # row = [item.strip() for item in row]
-                # database[row['mac']] = Device(**row)
     return database
     
 ##############################################################################80
 # Function to save device database to CSV
 ##############################################################################80
 def saveDatabase(path, data):
-    header = ["Status", "Name", "MAC", "IP", "FirstHeard", "LastHeard", "Vendor"]
+    header = list(data[next(iter(data))]._fields) if data else []
 
     with open(path, "w") as f:
         writer = csv.writer(f)
@@ -106,15 +103,8 @@ def saveDatabase(path, data):
         writer.writerow(header)
     
         for mac, details in data.items():
-            # details = [device.status, device.name, device.mac, device.ip, device.fSeen, device.lSeen, device.vendor]
             details = "{:^10}|{:<30}|{:>17}|{:^15}|{:>12}|{:>12}|{:<30}".format(*details).split("|", 0)
             writer.writerow(details)
-            
-            
-        # for device in data.values():  # Assuming data is a dictionary with devices
-        #     # Directly pass the tuple's attributes as a list
-        #     writer.writerow(device_data)
-            
     return True
 
 ##############################################################################80
