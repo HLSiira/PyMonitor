@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 import json
 import csv
 from collections import namedtuple
+from datetime import datetime, timedelta
 from utils import send, hasFlag, cPrint, SCANID, formatIP
 
 DEBUG = hasFlag("d")
@@ -19,6 +20,7 @@ NOSCAN = hasFlag("n")
 scanpath = "data/scanlog.xml"
 datapath = "data/devices.csv"
 netRange = "192.168.1.1/24"
+thirtyDaysAgo = datetime.now() - timedelta(days=30)
 
 ##############################################################################80
 # Launch NMAP and scan the network mask provided
@@ -101,8 +103,14 @@ def saveDatabase(path, data):
         writer = csv.writer(f)
         header = "{:^10}|{:^30}|{:^17}|{:^15}|{:^12}|{:^12}|{:^30}".format(*header).split("|", 0)
         writer.writerow(header)
-    
+
         for mac, details in data.items():
+            # Parse the LastHeard date and update the status if it's more than 30 days ago
+            lastHeard = datetime.strptime(details.LastHeard, '%Y%m%d%H%M')  # Adjust the format if different
+
+            if lastHeard < thirtyDaysAgo:
+                details = details._replace(Status="inactive")
+
             details = "{:^10}|{:<30}|{:>17}|{:^15}|{:>12}|{:>12}|{:<30}".format(*details).split("|", 0)
             writer.writerow(details)
     return True
@@ -123,12 +131,17 @@ def processScan(scan, database):
                 d = json.load(f)
                 oldData = Device(Status=d["status"], Name=d["name"], MAC=d["mac"], IP=ip, FirstHeard=SCANID, LastHeard=SCANID, Vendor=d["vendor"])
                 device = oldData
-                
+
+        if device.Status == "inactive": 
+            device = device._replace(Status="resurfaced")
+        elif device.Status == "resurfaced":
+            device = device._replace(Status="active")
+
         # Update data to the latest scan
         device = device._replace(LastHeard=SCANID, IP=ip)
-        
+
         # Update the database with the new or updated device
-        database[mac] = device                
+        database[mac] = device
 
     return database
 
@@ -140,11 +153,12 @@ def processNewDevices(database):
     text = "<b>New devices:</b>"
     for mac, device in database.items():
         if device.Status != "allowed":
-            cPrint(f'New device detected: {device.MAC} by {device.Vendor} on {device.IP}')
+            cPrint(f'Device detected: {device.MAC} by {device.Vendor} on {device.IP}')
             newDevices += 1
             ip, vendor = device.IP, device.Vendor
             vendor = f"<font color='#ff4d3e'>{vendor}</font>" if vendor == "unknown" else vendor
-            text += f"\n\t - {mac} by {vendor} on {ip}"
+            type = "detected" if device.Status == "intruder" else "resurfaced"
+            text += f"\n\t - {mac} {type} on {ip} by {vendor}."
 
     if newDevices:
         cPrint("New devices found, sending notification...")
