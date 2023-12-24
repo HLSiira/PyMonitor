@@ -10,6 +10,7 @@ import subprocess
 import xml.etree.ElementTree as ET
 import json
 import csv
+import requests
 from collections import namedtuple
 from datetime import datetime, timedelta
 from utils import send, hasFlag, cPrint, SCANID, formatIP
@@ -118,6 +119,22 @@ def saveDatabase(path, data):
 ##############################################################################80
 # Parse scan to determine new devices, update devices.csv
 ##############################################################################80
+def searchVendor(mac):
+    url = f'https://api.macvendors.com/{mac}'
+    try:
+        response = requests.get(url)
+        if DEBUG:
+            cPrint(response.text)
+        if response.status_code == 200:
+            return response.text  # The vendor name
+        else:
+            return "unknown"
+    except requests.RequestException:
+        return "failed"
+
+##############################################################################80
+# Parse scan to determine new devices, update devices.csv
+##############################################################################80
 def processScan(scan, database):
     for device in scan:
         mac = device["mac"]
@@ -132,13 +149,17 @@ def processScan(scan, database):
                 oldData = Device(Status=d["status"], Name=d["name"], MAC=d["mac"], IP=ip, FirstHeard=SCANID, LastHeard=SCANID, Vendor=d["vendor"])
                 device = oldData
 
-        if device.Status == "inactive": 
+        if device.Status == "inactive":
             device = device._replace(Status="resurfaced")
         elif device.Status == "resurfaced":
             device = device._replace(Status="active")
 
+        vendor = device.Vendor
+        if vendor == "unknown":
+            vendor = searchVendor(mac)
+
         # Update data to the latest scan
-        device = device._replace(LastHeard=SCANID, IP=ip)
+        device = device._replace(LastHeard=SCANID, IP=ip, Vendor=vendor)
 
         # Update the database with the new or updated device
         database[mac] = device
