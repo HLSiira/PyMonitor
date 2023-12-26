@@ -98,10 +98,10 @@ if special_events:
 if messages:
     cPrint(f"Events detected, sending notification...")
     if DEBUG:
-        print(update)
+        print("\n".join(messages))
     else:
         send("Astronomical Event", "\n".join(messages))
-else:
+elif DEBUG:
     cPrint(f"No astrological events.")
 
 exit(0)

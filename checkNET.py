@@ -84,14 +84,14 @@ Device = namedtuple("Device", ("Status Name MAC IP FirstHeard LastHeard Vendor")
 def loadDatabase(path):
     database = {}
     if os.path.exists(path):
-        with open(path, mode='r') as f:
+        with open(path, mode="r") as f:
             # Create a DictReader, and then strip whitespace from the field names
-            readCSV = csv.DictReader((line.replace('\0', '') for line in f), delimiter='|')
+            readCSV = csv.DictReader((line.replace("\0", "") for line in f), delimiter="|")
             readCSV.fieldnames = [name.strip() for name in readCSV.fieldnames]
 
             for row in readCSV:
                 cleaned_row = {k: v.strip() for k, v in row.items()}
-                database[cleaned_row['MAC']] = Device(**cleaned_row)
+                database[cleaned_row["MAC"]] = Device(**cleaned_row)
     return database
     
 ##############################################################################80
@@ -106,8 +106,8 @@ def saveDatabase(path, data):
         writer.writerow(header)
 
         for mac, details in data.items():
-            # Parse the LastHeard date and update the status if it's more than 30 days ago
-            lastHeard = datetime.strptime(details.LastHeard, '%Y%m%d%H%M')  # Adjust the format if different
+            # Parse the LastHeard date and update the status if it"s more than 30 days ago
+            lastHeard = datetime.strptime(details.LastHeard, "%Y%m%d%H%M")  # Adjust the format if different
 
             if lastHeard < thirtyDaysAgo:
                 details = details._replace(Status="inactive")
@@ -120,7 +120,7 @@ def saveDatabase(path, data):
 # Parse scan to determine new devices, update devices.csv
 ##############################################################################80
 def searchVendor(mac):
-    url = f'https://api.macvendors.com/{mac}'
+    url = f"https://api.macvendors.com/{mac}"
     try:
         response = requests.get(url)
         if DEBUG:
@@ -174,10 +174,10 @@ def processNewDevices(database):
     text = "<b>New devices:</b>"
     for mac, device in database.items():
         if device.Status != "allowed":
-            cPrint(f'Device detected: {device.MAC} by {device.Vendor} on {device.IP}')
+            cPrint(f"Device detected: {device.MAC} by {device.Vendor} on {device.IP}")
             newDevices += 1
             ip, vendor = device.IP, device.Vendor
-            vendor = f"<font color='#ff4d3e'>{vendor}</font>" if vendor == "unknown" else vendor
+            vendor = f"<font color="#ff4d3e">{vendor}</font>" if vendor == "unknown" else vendor
             type = "detected" if device.Status == "intruder" else "resurfaced"
             text += f"\n\t - {mac} {type} on {ip} by {vendor}."
 

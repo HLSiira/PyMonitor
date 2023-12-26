@@ -2,3 +2,4 @@
 # sudo apt install python3-pip
 # sudo apt install nmap curl speedtest smartmontools
 lxml
+psutil

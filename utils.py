@@ -27,7 +27,8 @@ def hasFlag(flg):
 def formatIP(ip):
     octets = ip.split('.')
     # Pad each octet with zeros to make it three digits long
-    octets[3] = octets[3].zfill(3)
+    # octets[3] = octets[3].zfill(3)
+    octets = [octet.zfill(3) for octet in octets]
     # Join the octets back into a formatted IP address
     return ".".join(octets)
 
