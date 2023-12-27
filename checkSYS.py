@@ -48,8 +48,8 @@ def checkMemory(threshold=75):
     cPrint(f"Checking Memory...", "BLUE") if args.debug else None    
     memory = psutil.virtual_memory()
     percentage = memory.used / memory.total * 100
-    used, cat = humanReadable(memory.used)
-    total, cat = humanReadable(memory.total)
+    used, cat = bytesToHuman(memory.used)
+    total, cat = bytesToHuman(memory.total)
     state = f"Memory: {used}/{total}{cat} ({percentage:.0f}%)"
     return percentage > threshold, state
 
@@ -60,8 +60,8 @@ def checkStorage(threshold=80):
     cPrint(f"Checking Storage...", "BLUE") if args.debug else None    
     storage = psutil.disk_usage("/")
     percentage = storage.used / storage.total * 100
-    used, cat = humanReadable(storage.used)
-    total, cat = humanReadable(storage.total)
+    used, cat = bytesToHuman(storage.used)
+    total, cat = bytesToHuman(storage.total)
     state = f"Storage: {used}/{total}{cat} ({percentage:.0f}%)" 
     return percentage > threshold, state
 
