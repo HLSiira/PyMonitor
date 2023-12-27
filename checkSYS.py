@@ -8,9 +8,11 @@
 # USAGE via CRON: (Runs every 15 minutes)
 #   */15 * * * * cd /path/to/folder && ./checkSYS.py 2>&1 | ./tailog.py
 # USAGE via CLI:
-#   cd /path/to/folder && ./checkSYS.py (-dn)
-#   Flags:  -d: prints debug messages and doesn't send notification
-#           -n: to use a cached nmap scan, created on first run
+#   cd /path/to/folder && ./checkSYS.py (-cdqt)
+#   Flags:  -c: Formats messages into loggable format, with more information.
+#           -d: activates debug messages during run, to track progress.
+#           -q: disables push notifications, prints message to terminal.
+#           -t: overrides passing conditions to test notifications.
 ##############################################################################80
 # Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
 # warranty under the MIT License. See [root]/docs/LICENSE.md for more.
