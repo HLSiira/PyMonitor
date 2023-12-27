@@ -66,7 +66,7 @@ def byteToMbits(bytes):
 ##############################################################################80
 def processCurrentTest(currentTest, date):
     cPrint("Processing hourly test...", "BLUE") if args.debug else None
-    csvToday = f"data/SpeedTest/daily/{date}.csv"
+    csvToday = f"/home/liam/Artemis/SpeedTest/daily/{date}.csv"
     allTests = []
 
     # Read from CSV file all previous tests
@@ -119,9 +119,9 @@ def createSummary(todaysTests, date):
 
         minDownload = min(download, minDownload)
         maxDownload = max(download, maxDownload)
-        
-        minUpload = min(download, minUpload)
-        maxUpload = max(download, maxUpload)
+
+        minUpload = min(upload, minUpload)
+        maxUpload = max(upload, maxUpload)
 
     # Calculate averages and create the summary namedtuple.
     averagePing = round(sumPing / numTests, 2) if numTests > 0 else 0
@@ -146,7 +146,7 @@ def createSummary(todaysTests, date):
 ##############################################################################80
 def saveTodaysSummary(todaysSummary):
     cPrint("Processing todays test...", "BLUE") if args.debug else None
-    csvAnnual = f"data/SpeedTest/summaries/{time.strftime('%Y')}.csv"
+    csvAnnual = f"/home/liam/Artemis/SpeedTest/summaries/{time.strftime('%Y')}.csv"
     
     allSummaries = []
 
@@ -161,7 +161,7 @@ def saveTodaysSummary(todaysSummary):
                 cleanedRow = {k: v.strip() for k, v in row.items()}
                 rowSummary = DailySummary(**cleanedRow)
                 if rowSummary.Date != todaysSummary.Date:
-                    allSummaries.append()
+                    allSummaries.append(rowSummary)
 
     # Read from CSV file all previous tests
     allSummaries.append(todaysSummary)
@@ -184,8 +184,8 @@ def saveTodaysSummary(todaysSummary):
 ##############################################################################80
 def recalcAllSummaries(year):
     cPrint("Recalculating all summaries...", "BLUE") if args.debug else None
-    csvAnnual = f"data/SpeedTest/summaries/{year}.csv"
-    dailyFolder = "data/SpeedTest/daily/"
+    csvAnnual = f"/home/liam/Artemis/SpeedTest/summaries/{year}.csv"
+    dailyFolder = "/home/liam/Artemis/SpeedTest/daily/"
     
     allSummaries = []
     
@@ -210,6 +210,8 @@ def recalcAllSummaries(year):
 
         currentSummary = createSummary(allTests, date)
         allSummaries.append(currentSummary)
+
+    allSummaries = sorted(allSummaries, key=lambda x: x.Date)
 
     # Save all tests to CSV file 
     header = allSummaries[0]._fields
