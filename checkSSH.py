@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 
 ##############################################################################80
-# SSH Weekly Activity Alert 20231226
+# SSH Weekly Activity Notice 20231227
 # Description: Scans SSH Auth log and signals last 7 days of activity.
+# Usage via CRON: (Runs every day at 0707, must be ROOT user)
+#   7 7 * * * cd /path/to/folder && ./checkSSH.py --cron 2>&1 | ./tailog.py
+# Usage via CLI:
+#   cd /path/to/folder && ./checkSSH.py (-cdqt)
+#   Flags:  -c: Formats messages into loggable format, with more information.
+#           -d: activates debug messages during run, to track progress.
+#           -q: disables push notifications, prints message to terminal.
+#           -t: overrides passing conditions to test notifications.
+##############################################################################80
 # Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
 # warranty under the MIT License. See [root]/LICENSE.md for more.
 ##############################################################################80
-
 import os, re, sys
 from datetime import datetime, timedelta
 from utils import checkSudo, cPrint, formatIP, getBaseParser, sendNotification
@@ -68,11 +76,7 @@ def main():
         for (date, ip, user), count in entries.items():
             message += f"\n\t- {date}: {count} connections to <i>{user}</i> from {ip}"
 
-        if args.debug:
-            cPrint(subject)
-            cPrint(message)
-        else:
-            sendNotification(subject, message)
+        sendNotification(subject, message)
     else:
         cPrint("No SSH activity found.", "BLUE")
 

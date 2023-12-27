@@ -5,9 +5,17 @@
 ##############################################################################80
 # Description: This script uses Certbot to renew SSL certificates and sends a
 # notification about the renewal status. Requires root privileges
+# Usage via CRON: (Runs every day at 0702, must be ROOT user)
+#   2 7 * * * cd /path/to/folder && ./checkCRT.py --cron 2>&1 | ./tailog.py
+# Usage via CLI:
+#   cd /path/to/folder && ./checkCRT.py (-cdqt)
+#   Flags:  -c: Formats messages into loggable format, with more information.
+#           -d: activates debug messages during run, to track progress.
+#           -q: disables push notifications, prints message to terminal.
+#           -t: overrides passing conditions to test notifications.
 ##############################################################################80
 # Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
-# warranty under the MIT License. See [root]/docs/LICENSE.md for more.
+# warranty under the MIT License. See [root]/LICENSE.md for more.
 ##############################################################################80
 
 import subprocess
@@ -18,7 +26,7 @@ from utils import checkSudo, cPrint, getBaseParser, sendNotification
 ##############################################################################80
 # Global variables
 ##############################################################################80
-parser = getBaseParser("Leverages Certbot to renew SSL Certs. Requires sudo privileges.")
+parser = getBaseParser("Leverages Certbot to renew SSL Certs. Requires root privileges.")
 args = parser.parse_args()
 
 ##############################################################################80
@@ -105,18 +113,13 @@ def main():
         else:
             cPrint("No Certbot renewals.", "BLUE")
 
-
     except RuntimeError as err:
         cPrint("Certbot error occurred, sending notification...", "RED")
         subject = "Certbot renewal error"
         message = str(err)
 
     if certRenewed or args.test:
-        if args.debug:
-            cPrint(subject)
-            cPrint(message)
-        else:
-            sendNotification(subject, message)
+        sendNotification(subject, message)
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
     sys.exit(0)   

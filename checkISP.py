@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 
 ##############################################################################80
-# Network Intrusion Scan 20231224 - Device intrusion script
+# ISP Speed Monitor 20231227
 ##############################################################################80
-# This script will scan the network of your choice and will alert you of devices
-# not listed as "allowed" in the database. The alerts are sent through PushOver.
-# By default, all devices will show as untrusted.
-# USAGE via CRON: (Runs every 10 minutes, must be ROOT user)
-#   */10 * * * * cd /path/to/folder && ./checkNET.py 2>&1
-# USAGE via CLI:
-#   cd /path/to/folder && ./checkNET.py (-dn)
-#   Flags:  -d: prints debug messages and doesn't send notification
-#           -n: to use a cached nmap scan, created on first run
+# Description: Check ISP speeds and maintains human-readable records, sends
+# notifications via PushOver if speeds are outside of defined bounderies.
+# Usage via CRON: (Runs every hour on minute four)
+#   4 * * * * cd /path/to/folder && ./checkISP.py --cron 2>&1 | ./tailog.py
+# Usage via CLI:
+#   cd /path/to/folder && ./checkISP.py (-cdnqrt)
+#   Flags:  -c: Formats messages into loggable format, with more information.
+#           -d: activates debug messages during run, to track progress.
+#           -n: use generated scan instead of running speedtest.
+#           -q: disables push notifications, prints message to terminal.
+#           -r: recalculates all summaries for current year.
+#           -t: overrides passing conditions to test notifications.
 ##############################################################################80
 # Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
-# warranty under the MIT License. See [root]/docs/LICENSE.md for more.
+# warranty under the MIT License. See [root]/LICENSE.md for more.
 ##############################################################################80
 
 import os, sys
@@ -28,18 +31,23 @@ import re
 
 from datetime import datetime
 from collections import namedtuple
-from utils import cPrint, getBaseParser, sendNotification, SCANID
+from utils import cPrint, getBaseParser, sendNotification, SCANID, CONF
 
 ##############################################################################80
 # Global variables
 ##############################################################################80
-parser = getBaseParser("Scans network range for unregistered devices.")
-parser.add_argument("-n", "--noscan", action="store_true", help="Uses generic speedtest.")
-parser.add_argument("-r", "--recalc", action="store_true", help="Recalculates all summaries.")
+parser = getBaseParser("Runs and stores speedtest of ISP.")
+parser.add_argument("-n", "--noscan", action="store_true", help="use generated scan instead of running speedtest.")
+parser.add_argument("-r", "--recalc", action="store_true", help="Recalculates all summaries for current year.")
 args = parser.parse_args()
 
 SpeedTest = namedtuple("SpeedTest", ("DateTime Ping Download Upload"))
 DailySummary = namedtuple("DailySummary", ("Date AvgPing MinDown AvgDown MaxDown MinUp AvgUp MaxUp"))
+
+##############################################################################80
+# Configurations
+##############################################################################80
+storagePath = CONF["speedTest"]["storagePath"]
 
 ##############################################################################80
 # Run the speed test and return results
@@ -66,7 +74,7 @@ def byteToMbits(bytes):
 ##############################################################################80
 def processCurrentTest(currentTest, date):
     cPrint("Processing hourly test...", "BLUE") if args.debug else None
-    csvToday = f"/home/liam/Artemis/SpeedTest/daily/{date}.csv"
+    csvToday = f"{storagePath}/daily/{date}.csv"
     allTests = []
 
     # Read from CSV file all previous tests
@@ -146,7 +154,7 @@ def createSummary(todaysTests, date):
 ##############################################################################80
 def saveTodaysSummary(todaysSummary):
     cPrint("Processing todays test...", "BLUE") if args.debug else None
-    csvAnnual = f"/home/liam/Artemis/SpeedTest/summaries/{time.strftime('%Y')}.csv"
+    csvAnnual = f"{storagePath}/summaries/{time.strftime('%Y')}.csv"
     
     allSummaries = []
 
@@ -184,8 +192,8 @@ def saveTodaysSummary(todaysSummary):
 ##############################################################################80
 def recalcAllSummaries(year):
     cPrint("Recalculating all summaries...", "BLUE") if args.debug else None
-    csvAnnual = f"/home/liam/Artemis/SpeedTest/summaries/{year}.csv"
-    dailyFolder = "/home/liam/Artemis/SpeedTest/daily/"
+    csvAnnual = f"{storagePath}/summaries/{year}.csv"
+    dailyFolder = f"{storagePath}/daily/"
     
     allSummaries = []
     
@@ -251,20 +259,16 @@ def main():
         recalcAllSummaries(time.strftime('%Y'))
     else:
         saveTodaysSummary(todaysSummary)
-    
 
-    if float(download) < 400 or float(upload) < 20 or args.test:
+    if float(download) < CONF["speedTest"]["minDownload"] or float(upload) < CONF["speedTest"]["minUpload"] or args.test:
         cPrint("Speeds outside of boundaries, sending notification...", "RED")
         subject = f"ISP Speed Alert"
         message = f"ISP: P{ping}, D{download}, U{upload}"
             
-        if args.debug:
-            cPrint(subject)
-            cPrint(message)
-        else:
-            sendNotification(subject, message)            
+        sendNotification(subject, message)            
     else:
         cPrint("Speeds within defined boundaries.", "BLUE")
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()

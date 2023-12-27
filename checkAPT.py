@@ -1,24 +1,31 @@
 #!/usr/bin/env python3
 
 ##############################################################################80
-# Apt Updates 20231224
+# Apt Update Notifications 20231227
 ##############################################################################80
-# Description: This script is designed to check for package updates in a
-# Debian-based system, categorizing them into regular and security updates.
+# Description: Check for package updates in a Debian-based system, categorizing
+# them into regular and security updates, sends notifications via PushOver
+# Usage via CRON: (Runs every day at 0701)
+#   1 7 * * * cd /path/to/folder && ./checkAPT.py --cron 2>&1 | ./tailog.py
+# Usage via CLI:
+#   cd /path/to/folder && ./checkAPT.py (-cdqt)
+#   Flags:  -c: Formats messages into loggable format, with more information.
+#           -d: activates debug messages during run, to track progress.
+#           -q: disables push notifications, prints message to terminal.
+#           -t: overrides passing conditions to test notifications.
+##############################################################################80
 # Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
 # warranty under the MIT License. See [root]/LICENSE.md for more.
-# This information must remain intact.
 ##############################################################################80
 
 import os, sys, subprocess
 import apt, apt_pkg
-
-from utils import checkSudo, cPrint, formatIP, getBaseParser, sendNotification
+from utils import cPrint, getBaseParser, sendNotification
 
 ##############################################################################80
 # Global variables
 ##############################################################################80
-parser = getBaseParser("Scans SSH Auth log and signals last 7 days of activity.")
+parser = getBaseParser("Sends notifications when package updates are available.")
 args = parser.parse_args()
 
 SYNAPTIC_PINFILE = "/var/lib/synaptic/preferences"
@@ -154,11 +161,7 @@ def main():
             else:
                 message += f"\n\t- {name}"
         
-        if args.debug:
-            cPrint(subject)
-            cPrint(message)
-        else:
-            sendNotification(subject, message)
+        sendNotification(subject, message)
     else:
         cPrint("No package updates.", "BLUE")
 

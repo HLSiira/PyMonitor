@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 
 ##############################################################################80
-# Utils 20231224 - Tagline
+# System Health Check 20231224
 ##############################################################################80
-# Description
+# Description: Checks system information and sends notification if outside
+# predefined bounderies.
+# USAGE via CRON: (Runs every 15 minutes)
+#   */15 * * * * cd /path/to/folder && ./checkSYS.py 2>&1 | ./tailog.py
+# USAGE via CLI:
+#   cd /path/to/folder && ./checkSYS.py (-dn)
+#   Flags:  -d: prints debug messages and doesn't send notification
+#           -n: to use a cached nmap scan, created on first run
 ##############################################################################80
 # Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
 # warranty under the MIT License. See [root]/docs/LICENSE.md for more.
-# This information must remain intact.
 ##############################################################################80
 
 import os, re, sys
 import math
 import psutil
-from utils import cPrint, getBaseParser, sendNotification
+from utils import cPrint, getBaseParser, sendNotification, CONF
 
 ##############################################################################80
 # Global variables
@@ -70,8 +76,12 @@ def checkStorage(threshold=80):
 ##############################################################################80
 def main():
     cPrint(f"Beginning main execution...", "BLUE") if args.debug else None
+    
+    cpuThreshold = CONF["systemHealth"]["CPU"]
+    memoryThreshold = CONF["systemHealth"]["memory"]
+    storageThreshold = CONF["systemHealth"]["storage"]
 
-    metrics = [checkCPU(), checkMemory(), checkStorage()]
+    metrics = [checkCPU(cpuThreshold), checkMemory(memoryThreshold), checkStorage(storageThreshold)]
 
     message = "<b>System Metrics:</b>"
     sendNotice = False
@@ -85,11 +95,7 @@ def main():
         cPrint(f"System alert, sending notification...", "RED")
         subject = "System health alert"
 
-        if args.debug:
-            cPrint(subject)
-            cPrint(message)
-        else:
-            sendNotification(subject, message)            
+        sendNotification(subject, message)            
     else:
         cPrint("All systems nominal.", "BLUE")
 

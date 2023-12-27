@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 
 ##############################################################################80
-# Utils 20231224
-# Description
+# Utility Helper Functions 20231227
+##############################################################################80
+# Description: Check ISP speeds and maintains human-readable records, sends
+# notifications via PushOver if speeds are outside of defined bounderies.
+# Usage: imports only
+#   Flags:  -c: Formats messages into loggable format, with more information.
+#           -d: activates debug messages during run, to track progress.
+#           -q: disables push notifications, prints message to terminal.
+#           -t: overrides passing conditions to test notifications.
+##############################################################################80
 # Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
 # warranty under the MIT License. See [root]/LICENSE.md for more.
 ##############################################################################80
@@ -21,22 +29,24 @@ from datetime import datetime
 SCRIPTNAME = "defaultScript"
 HOSTNAME = "defaultHOST"
 SCANID = "defaultScanID"
+CONF = {}
 args = False
 
 def initGlobals():
-    global HOSTNAME, SCRIPTNAME, SCANID
+    global HOSTNAME, SCRIPTNAME, SCANID, CONF
     HOSTNAME = socket.gethostname().title()
     SCRIPTNAME = os.path.basename(sys.argv[0])
     SCANID = datetime.now().strftime("%Y%m%d%H%M")
+    CONF = loadConfig()
     
 def getBaseParser(description="Default description"):
     global args
     parser = argparse.ArgumentParser(description=description)
     # Add common arguments here
-    parser.add_argument("-d", "--debug", action="store_true", help="Activate debug messages.")
-    parser.add_argument("-c", "--cron", action="store_true", help="Indicates script is running as cron.")
-    parser.add_argument("-t", "--test", action="store_true", help="Forces test, ignores cached files.")
-    parser.add_argument("-q", "--quiet", action="store_true", help="Disable sending notifcations.")
+    parser.add_argument("-c", "--cron", action="store_true", help="Formats messages into loggable format, with more information.")
+    parser.add_argument("-d", "--debug", action="store_true", help="Activates debug messages during run, to track progress.")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Disables push notifications, prints message to terminal.")
+    parser.add_argument("-t", "--test", action="store_true", help="Overrides passing conditions to test notifications.")
     return parser
 
 ##############################################################################80
@@ -80,19 +90,22 @@ def formatIP(ip):
 ##############################################################################80
 # Load credentials from json file
 ##############################################################################80
-def loadCredentials(filename="data/config.json"):
+def loadConfig(filename="data/config.json"):
     with open(filename, "r") as f:
         data = json.load(f)
-    return data["userKey"], data["apiToken"]
+    return data
 
 ##############################################################################80
 # Using Pushover credentials, send a notification
 ##############################################################################80
 def sendNotification(subject, message, priority=0):
-    if args and args.quiet:
-        return True
+    if len(sys.argv) > 1 and "q" in sys.argv[1]:
+        cPrint(subject)
+        cPrint(message)
+        return False
 
-    userKey, apiToken = loadCredentials()
+    userKey = CONF["userKey"]
+    apiToken = CONF["apiToken"]
 
     data = {
         "token": apiToken,
@@ -101,7 +114,7 @@ def sendNotification(subject, message, priority=0):
         "title": f"{HOSTNAME}: {subject}",
         "html" : 1,
         "priority": priority,
-        "ttl": 43200
+        "ttl": CONF["expiration"]
     }
 
     response = requests.post("https://api.pushover.net/1/messages.json", data=data)

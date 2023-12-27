@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 
 ##############################################################################80
-# Astroligical Phenomena Notice 20231224
+# Astroligical Phenomena Notice 20231227
 ##############################################################################80
-# Description
+# Description: Sends notifications of astrological phenomena to allow users to
+# have something to blame a bad day on.
+# Usage via CRON: (Runs every day at 0706)
+#   6 7 * * * cd /path/to/folder && ./checkSKY.py --cron 2>&1 | ./tailog.py
+# Usage via CLI:
+#   cd /path/to/folder && ./checkSKY.py (-cdqt)
+#   Flags:  -c: Formats messages into loggable format, with more information.
+#           -d: activates debug messages during run, to track progress.
+#           -q: disables push notifications, prints message to terminal.
+#           -t: overrides passing conditions to test notifications.
 ##############################################################################80
 # Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
-# warranty under the MIT License. See [root]/docs/LICENSE.md for more.
-# This information must remain intact.
+# warranty under the MIT License. See [root]/LICENSE.md for more.
 ##############################################################################80
 
 import os, re, sys
@@ -66,10 +74,7 @@ def isMercuryInRetrograde():
 def getMoonPhase():
     cPrint("Checking the moon's phase...", "BLUE") if args.debug else None
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    # yesterday = datetime.now() - timedelta(days=1)
-    # timestamp = int(yesterday.timestamp())
-    # url = f"http://api.farmsense.net/v1/moonphases/?d={timestamp}"
-    
+
     # USNO API base URL for Earth's seasons
     base_url = "https://aa.usno.navy.mil/api/moon/phases/date"
 
@@ -119,13 +124,6 @@ def checkSeasonStart():
                 if item["day"] == day and item["month"] == month:
                     return True, f"Today is the {item['phenom']}!"
             return False, "Nothing special about today."
-            # if data:
-            #     phase = data["phasedata"][0]["phase"]  # Accessing the 'Phase' attribute
-            #     if phase == "Full Moon":
-            #     else:
-            #         return False, f"The moon was a {phase} last night."
-            # else:
-            #     return False, "No seasonal data available."
         else:
             return False, "Failed to retrieve seasonal data."
     except Exception as e:
@@ -151,11 +149,7 @@ def main():
         cPrint("Events detected, sending notification...", "RED")
         subject = "Astrological phenomena detected"
 
-        if args.debug:
-            cPrint(subject)
-            cPrint(message)
-        else:
-            sendNotification(subject, message)            
+        sendNotification(subject, message)            
     else:
         cPrint("No astrological phenomena.", "BLUE")
 

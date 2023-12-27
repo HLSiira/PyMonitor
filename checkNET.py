@@ -3,11 +3,11 @@
 ##############################################################################80
 # Network Intrusion Scan 20231224
 ##############################################################################80
-# This script will scan the network of your choice and will alert you of devices
-# not listed as "allowed" in the database. The alerts are sent through PushOver.
+# Description: Scans the network of your choice and will alert you of devices
+# not listed as "allowed" in the database through PushOver.
 # By default, all devices will show as untrusted.
 # USAGE via CRON: (Runs every 10 minutes, must be ROOT user)
-#   */10 * * * * cd /path/to/folder && ./checkNET.py 2>&1
+#   */10 * * * * cd /path/to/folder && ./checkNET.py 2>&1 | ./tailog.py
 # USAGE via CLI:
 #   cd /path/to/folder && ./checkNET.py (-dn)
 #   Flags:  -d: prints debug messages and doesn't send notification

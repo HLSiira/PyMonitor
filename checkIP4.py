@@ -1,16 +1,25 @@
 #!/usr/bin/env python3
 
 ##############################################################################80
-# IPv4 Check 20231224
+# IPv4 Check 20231227
 ##############################################################################80
-# Pulls IP Address from my domain and sends a notification if it's different
+# Description: Pulls public IP Address from a configured api and sends a 
+# notification upon change; useful for potentially non-static IP assignments.
+# Usage via CRON: (Runs every day at 0703)
+#   3 7 * * * cd /path/to/folder && ./checkIP4.py --cron 2>&1 | ./tailog.py
+# Usage via CLI:
+#   cd /path/to/folder && ./checkIP4.py (-cdqt)
+#   Flags:  -c: Formats messages into loggable format, with more information.
+#           -d: activates debug messages during run, to track progress.
+#           -q: disables push notifications, prints message to terminal.
+#           -t: overrides passing conditions to test notifications.
 ##############################################################################80
 # Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
-# warranty under the MIT License. See [root]/docs/LICENSE.md for more.
+# warranty under the MIT License. See [root]/LICENSE.md for more.
 ##############################################################################80
 
 import sys, re, requests
-from utils import getBaseParser, cPrint, sendNotification, formatIP
+from utils import getBaseParser, cPrint, sendNotification, formatIP, CONF
 
 ##############################################################################80
 # Global variables
@@ -24,7 +33,7 @@ args = parser.parse_args()
 def getPublicIP():
     cPrint(f"Pulling Public IP...", "BLUE") if args.debug else None
     try:
-        response = requests.get("https://siira.io/ip")
+        response = requests.get(CONF["ipAddressAPI"])
         response.raise_for_status()
         publicIP = response.text
         if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", publicIP):
@@ -70,11 +79,7 @@ def main():
         subject = "IP address changed"
         message = f"IP Address has changed from {oldIP} to {newIP}"
 
-        if args.debug:
-            cPrint(subject)
-            cPrint(message)
-        else:
-            sendNotification(subject, message)            
+        sendNotification(subject, message)            
     else:
         cPrint(f"No change, public IP address is {newIP}.")
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
