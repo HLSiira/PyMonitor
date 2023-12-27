@@ -43,9 +43,9 @@ def createDirectory(name):
     backup = f"{BACKUPPATH}/{name}"
     try:
         os.makedirs(backup, exist_ok=True)
-        return True, f"Directory creation successful for {name}"
+        return False, f"Directory creation successful for {name}"
     except subprocess.CalledProcessError:
-        return False, f"Directory creation failed on {name}"
+        return True, f"Directory creation failed on {name}"
 
 ##############################################################################80
 # 
@@ -55,9 +55,9 @@ def compress(archive, source):
 
     try:
         subprocess.run(["tar", "--exclude-vcs", "-zcf", f"{BACKUPPATH}/{archive}", "-C", source, "."], check=True)
-        return True, f"{archive} created and stored"
+        return False, f"{archive} created and stored"
     except subprocess.CalledProcessError:
-        return False, f"TAR command failed on {name}"
+        return True, f"TAR command failed on {name}"
 
 ##############################################################################80
 # Delete files older than the expiry period
@@ -67,9 +67,9 @@ def cleanUp(name, deleteAfter):
     backup = f"{BACKUPPATH}/{name}"
     try:
         subprocess.run(["find", f"{backup}", "-type", "f", "-mtime", f"+{deleteAfter}", "-delete"], check=True)
-        return True, f"Cleanup successful for {name}"
+        return False, f"Cleanup successful for {name}"
     except subprocess.CalledProcessError:
-        return False, f"Cleanup failed on {name}"
+        return True, f"Cleanup failed on {name}"
 
 ##############################################################################80
 # rClone to cloud storage
@@ -79,9 +79,9 @@ def rCloneToCloud(method="copy"):
     cloudPath = CONF["backup"]["cloudPath"] + HOSTNAME
     try:
         subprocess.run(["rclone", "sync", BACKUPPATH, cloudPath], check=True, capture_output=True)
-        return True, "RClone sync successful"
+        return False, "RClone sync successful"
     except subprocess.CalledProcessError:
-        return False, "RClone sync failed"
+        return True, "RClone sync failed"
 
 ##############################################################################80
 # Begin main execution
@@ -94,18 +94,18 @@ def main():
     metrics = []
     for item in CONF["backup"]["items"]:
         name = item["name"]
-        path = item["path"]
-        
+        path = item["path"] if "path" in item else False
+
         metrics.append(createDirectory(name))
-        
+
         if item["compress"] and not args.skipCompress:
             weeknum = datetime.now().strftime("%V")
             archive = f"{name}/{name}-WK{weeknum}.tar.gz"
             metrics.append(compress(archive, path))
-            
+
         if item["cleanup"]:
             metrics.append(cleanUp(name, deleteAfter))
-            
+
     metrics.append(rCloneToCloud())
 
     message = "<b>Process status:</b>"
@@ -115,12 +115,12 @@ def main():
         if warning:
             sendNotice = True
         message += f"\n\t- {state}"
-        
+
     if sendNotice or args.test:
         cPrint(f"Error in backup process, sending notification...", "RED")
         subject = "Error in backup process"
 
-        sendNotification(subject, message)            
+        sendNotification(subject, message)
     else:
         cPrint("Backup successful.", "BLUE")
 

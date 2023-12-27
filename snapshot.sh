@@ -56,5 +56,5 @@ find "$TARGET/daily" -type f -mtime +"$AGEOFF" -delete || { sendNotification "Cl
 #=============================================================================80
 echo -e "RCloning to Google Drive"
 RCLONE_TARGET="drive-liam-siira:Backup/Servers/$HOST"
-rclone sync "/home/liam/$HOST" "$RCLONE_TARGET" || { sendNotification "RClone sync failed"; exit 1; }
+rclone copy "/home/liam/$HOST" "$RCLONE_TARGET" || { sendNotification "RClone sync failed"; exit 1; }
 echo -e "Daily Backup and RClone finished"
