@@ -1,63 +1,54 @@
 #!/usr/bin/env python3
 
+##############################################################################80
+# Apt Updates 20231224
+##############################################################################80
+# Description: This script is designed to check for package updates in a
+# Debian-based system, categorizing them into regular and security updates.
+# Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
+# warranty under the MIT License. See [root]/LICENSE.md for more.
+# This information must remain intact.
+##############################################################################80
 
-# https://gist.github.com/yumminhuang/8b1502a49d8b20a6ae70
+import os, sys, subprocess
+import apt, apt_pkg
 
-import os, sys
-import subprocess
+from utils import checkSudo, cPrint, formatIP, getBaseParser, sendNotification
 
-import apt
-import apt_pkg
+##############################################################################80
+# Global variables
+##############################################################################80
+parser = getBaseParser("Scans SSH Auth log and signals last 7 days of activity.")
+args = parser.parse_args()
 
-from utils import send, hasFlag, cPrint, SCANID
-
-DEBUG = hasFlag("d")
-
-"""
-Following functions are used to return package info of available updates.
-See: /usr/lib/update-notifier/apt_check.py
-"""
 SYNAPTIC_PINFILE = "/var/lib/synaptic/preferences"
 DISTRO = subprocess.check_output(
     ["lsb_release", "-c", "-s"], universal_newlines=True
 ).strip()
 
 
-def clean(cache, depcache):
-    """ unmark (clean) all changes from the given depcache """
-    # mvo: looping is too inefficient with the new auto-mark code
-    # for pkg in cache.Packages:
-    #    depcache.MarkKeep(pkg)
-    depcache.init()
-
-
-def saveDistUpgrade(cache, depcache):
-    """ this functions mimics a upgrade but will never remove anything """
-    depcache.upgrade(True)
-    if depcache.del_count > 0:
-        clean(cache, depcache)
-    depcache.upgrade()
-
+##############################################################################80
+# Helper: Create a package url to send in the notification
+##############################################################################80
 def create_package_url(package_name):
-    # Modify this function to match your distribution's package tracking system
     base_url = "https://packages.ubuntu.com/search?keywords="
     return f"{base_url}{package_name}"
 
+##############################################################################80
+# Check for package updates
+##############################################################################80
 def getAptUpdates():
-    """
-    Return a list of dict about package updates
-    """
+    cPrint("Checking for package updates...", "BLUE") if args.debug else None
+    
     comPacks = []
 
     apt_pkg.init()
-    # force apt to build its caches in memory for now to make sure
-    # that there is no race when the pkgcache file gets re-generated
     apt_pkg.config.set("Dir::Cache::pkgcache", "")
 
     try:
         cache = apt_pkg.Cache(apt.progress.base.OpProgress())
     except SystemError as e:
-        sys.stderr.write("Error: Opening the cache (%s)" % e)
+        cPrint(f"Error opening the cache: {e}", "RED")
         sys.exit(-1)
 
     depcache = apt_pkg.DepCache(cache)
@@ -70,14 +61,13 @@ def getAptUpdates():
     depcache.init()
 
     try:
-        saveDistUpgrade(cache, depcache)
+        depcache.upgrade(True)
+        if depcache.del_count > 0:
+            depcache.init()
+        depcache.upgrade()
     except SystemError as e:
-        sys.stderr.write("Error: Marking the upgrade (%s)" % e)
+        cPrint(f"Error marking the upgrade: {e}", "RED")
         sys.exit(-1)
-
-    # use assignment here since apt.Cache() doesn't provide a __exit__ method
-    # on Ubuntu 12.04 it looks like
-    # aptcache = apt.Cache()
 
     secCount = 0
 
@@ -105,9 +95,10 @@ def getAptUpdates():
 
     return comPacks, secCount
 
-
+##############################################################################80
+# Helper: Parses out security information
+##############################################################################80
 def securityHelper(version):
-    """ check if the given version is a security update (or masks one) """
     security_pockets = [
         ("Ubuntu", "%s-security" % DISTRO),
         ("gNewSense", "%s-security" % DISTRO),
@@ -120,9 +111,11 @@ def securityHelper(version):
                 return True
     return False
 
-
+##############################################################################80
+# Check if package update is security related
+##############################################################################80
 def isSecurityUpgrade(pack, version):
-    """ check if the given version is a security update (or masks one) """
+    cPrint("Checking if package is security related...", "BLUE") if args.debug else None
     inst_ver = pack.current_ver
 
     if securityHelper(version):
@@ -132,38 +125,44 @@ def isSecurityUpgrade(pack, version):
     # canidate version from another repo (-proposed or -updates)
     for ver in pack.version_list:
         if inst_ver and apt_pkg.version_compare(ver.ver_str, inst_ver.ver_str) <= 0:
-            # print "skipping '%s' " % ver.VerStr
             continue
         if securityHelper(ver):
             return True
 
     return False
 
+##############################################################################80
+# Being Main execution
+##############################################################################80
+def main():
+    cPrint("Beginning main execution...", "BLUE") if args.debug else None
 
-(comPacks, secCount) = getAptUpdates()
-subject = f"{len(comPacks)}/{secCount} Updatable Package(s)"
+    (comPacks, secCount) = getAptUpdates()
 
-if len(comPacks) < 1:
-    cPrint("No package updates.")
-    exit(0)
-elif not DEBUG:
-    cPrint(f"{subject}, Sending notification...")
+    subject, message = "", ""
 
-text = "<b>Packages:</b>"
-
-for pack in comPacks:
-    url = create_package_url(pack["name"])
-    name = f'{pack["name"][:21]}...' if len(pack["name"]) > 24 else pack["name"]
-    if pack["security"]:
-        text += f"\n\t- <font color='#ff4d3e'>{name}</font>"
+    if any(comPacks) or args.test:
+        cPrint("APT Updates found, sending notification....", "BLUE")
+        subject = f"{len(comPacks)}/{secCount} Updatable Package(s)"
+        message = "<b>Packages:</b>"
+        
+        for pack in comPacks:
+            url = create_package_url(pack["name"])
+            name = f"{pack['name'][:21]}..." if len(pack["name"]) > 24 else pack["name"]
+            if pack["security"]:
+                message += f"\n\t- <font color='#ff4d3e'>{name}</font>"
+            else:
+                message += f"\n\t- {name}"
+        
+        if args.debug:
+            cPrint(subject)
+            cPrint(message)
+        else:
+            sendNotification(subject, message)
     else:
-        text += f"\n\t- {name}"
+        cPrint("No package updates.", "BLUE")
 
-# text += "\n * Updates for security packages"
+    sys.exit(0)
 
-if DEBUG:
-    print(subject)
-else:
-    send(subject, text)
-
-exit(0)
+if __name__ == "__main__":
+    main()

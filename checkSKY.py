@@ -1,107 +1,166 @@
 #!/usr/bin/env python3
 
-import os, sys
-import re
+##############################################################################80
+# Astroligical Phenomena Notice 20231224
+##############################################################################80
+# Description
+##############################################################################80
+# Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
+# warranty under the MIT License. See [root]/docs/LICENSE.md for more.
+# This information must remain intact.
+##############################################################################80
+
+import os, re, sys
 import ephem
 
 from requests import get
-import requests
+import time
 from datetime import datetime, timedelta
-from utils import send, hasFlag, cPrint, SCANID
+from utils import cPrint, getBaseParser, sendNotification
 
-DEBUG = hasFlag("d")
+##############################################################################80
+# Global variables
+##############################################################################80
+parser = getBaseParser("Checks for astrological phenomena.")
+args = parser.parse_args()
 
-
-def check_today_supermoon_micromoon():
+##############################################################################80
+# Check if today is a supermoon
+##############################################################################80
+def checkMoonDistance():
+    cPrint("Checking moon position...", "BLUE") if args.debug else None
     moon = ephem.Moon()
     today = datetime.now()
 
     moon.compute(today)
-    distance_km = moon.earth_distance * ephem.meters_per_au / 1000  # distance in kilometers
+    distance = moon.earth_distance * ephem.meters_per_au / 1000  # distance in kilometers
 
     # Criteria for supermoon and micromoon
-    is_supermoon = moon.phase >= 98 and distance_km < 360000
-    is_micromoon = moon.phase >= 98 and distance_km > 405000
+    isSupermoon = moon.phase >= 98 and distance < 360000
+    isMicromoon = moon.phase >= 98 and distance > 405000
 
-    if is_supermoon:
-        return "Today is a Supermoon."
-    elif is_micromoon:
-        return "Today is a Micromoon."
+    if isSupermoon:
+        return True, "Today is a Supermoon."
+    elif isMicromoon:
+        return True, "Today is a Micromoon."
     else:
-        return False
+        return False, "Nothing special about today's moon."
 
-# Function to check if Mercury is in retrograde
-def is_mercury_in_retrograde():
-    today = datetime.now().strftime('%Y-%m-%d')
-    response = get(f"https://mercuryretrogradeapi.com?date={today}")
-    if response.status_code == 200:
-        return response.json().get('is_retrograde', False)
-    return False
-
-# Function to check if the moon was full last night
-def was_moon_full_last_night():
-    yesterday = (datetime.now() - timedelta(1)).strftime('%Y-%m-%d')
-    response = get(f"https://moon-phase.p.rapidapi.com/basic?date={yesterday}")
-    if response.status_code == 200:
-        moon_data = response.json()
-        return moon_data.get('phase_name') == 'Full Moon'
-    return False
+##############################################################################80
+# Check if Mercury is in retrograde
+##############################################################################80
+def isMercuryInRetrograde():
+    cPrint("Looking for Mercury...", "BLUE") if args.debug else None
     
-def check_today_solstice_equinox():
-    # Get the current year and today's date
-    current_year = datetime.now().year
-    today = datetime.now().date()
+    today = datetime.now().strftime("%Y-%m-%d")
+    response = get(f"https://mercuryretrogradeapi.com?date={today}")
+    retrograde = response.status_code == 200 and response.json().get("is_retrograde", False)
+    if retrograde:
+        return True, "Mercury is in retrograde today!"
+    else:
+        return False, "Mercury isn't in retrograde today."
 
+##############################################################################80
+# Check if the moon was full last night
+##############################################################################80
+def getMoonPhase():
+    cPrint("Checking the moon's phase...", "BLUE") if args.debug else None
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    # yesterday = datetime.now() - timedelta(days=1)
+    # timestamp = int(yesterday.timestamp())
+    # url = f"http://api.farmsense.net/v1/moonphases/?d={timestamp}"
+    
     # USNO API base URL for Earth's seasons
-    base_url = "https://aa.usno.navy.mil/api/earth/seasons"
+    base_url = "https://aa.usno.navy.mil/api/moon/phases/date"
 
     # Query parameters
-    params = {"year": current_year}
+    params = {"date": yesterday, "ID":"hlsiira"}
 
-    # Sending a GET request to the USNO API
-    response = get(base_url, params=params)
-    if response.status_code == 200:
-        data = response.json()
-        # Check each season's date
-        for season, date_str in data.items():
-            season_date = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S").date()
-            if today == season_date:
-                return f"Today is the {season}."
-        return False
-    else:
-        return False
+    try:
+        response = get(base_url, params=params)
+        if response.status_code == 200:
+            data = response.json()
+            if data:
+                phase = data["phasedata"][0]["phase"]  # Accessing the 'Phase' attribute
+                if phase == "Full Moon":
+                    return True, "The moon was full last night."
+                else:
+                    return False, f"The moon was a {phase} last night."
+            else:
+                return False, "No moon phase data available."
+        else:
+            return False, "Failed to retrieve moon phase data."
+    except Exception as e:
+        return False, f"Error while retrieving moon phase: {e}"    
 
-
-
-# Function to get special astronomical events (implement based on the Astronomy API)
-def get_special_astronomical_events():
-    # Implementation depends on the specifics of the API and the types of events you want to include
-    pass
-
-messages = []
-if is_mercury_in_retrograde():
-    messages.append("Mercury is in retrograde today!")
-if was_moon_full_last_night():
-    messages.append("The moon was full last night.")
+##############################################################################80
+# Check if today is solstice or equinox
+##############################################################################80
+def checkSeasonStart():
+    cPrint("Determining if today is special...", "BLUE") if args.debug else None
     
-moon = check_today_supermoon_micromoon()
-if moon: messages.append(moon)
+    # Get the current year and today's date
+    day = datetime.now().day
+    month = datetime.now().month
+    year = datetime.now().year
 
-seasonalToday = check_today_solstice_equinox()
-if seasonalToday: messages.append(seasonalToday)
+    # USNO API base URL for Earth's seasons
+    base_url = "https://aa.usno.navy.mil/api/seasons"
 
-# Add more events based on the Astronomy API
-special_events = get_special_astronomical_events()
-if special_events:
-    messages.extend(special_events)
+    # Query parameters
+    params = {"year": year, "ID":"hlsiira"}
 
-if messages:
-    cPrint(f"Events detected, sending notification...")
-    if DEBUG:
-        print("\n".join(messages))
+    try:
+        response = get(base_url, params=params)
+        if response.status_code == 200:
+            data = response.json()["data"]
+            # Check each season's date
+            for item in data:
+                if item["day"] == day and item["month"] == month:
+                    return True, f"Today is the {item['phenom']}!"
+            return False, "Nothing special about today."
+            # if data:
+            #     phase = data["phasedata"][0]["phase"]  # Accessing the 'Phase' attribute
+            #     if phase == "Full Moon":
+            #     else:
+            #         return False, f"The moon was a {phase} last night."
+            # else:
+            #     return False, "No seasonal data available."
+        else:
+            return False, "Failed to retrieve seasonal data."
+    except Exception as e:
+        return False, f"Error while retrieving seasonal data: {e}"  
+
+##############################################################################80
+# Being Main execution
+##############################################################################80
+def main():
+    cPrint("Beginning main execution...", "BLUE") if args.debug else None
+
+    metrics = [isMercuryInRetrograde(), getMoonPhase(), checkSeasonStart(), checkMoonDistance()]
+
+    message = "<b>Astrological Phenomena Metrics:</b>"
+    sendNotice = False
+
+    for notice,state in metrics:
+        if notice:
+            sendNotice = True
+        message += f"\n\t- {state}"
+        
+    if sendNotice or args.test:
+        cPrint("Events detected, sending notification...", "RED")
+        subject = "Astrological phenomena detected"
+
+        if args.debug:
+            cPrint(subject)
+            cPrint(message)
+        else:
+            sendNotification(subject, message)            
     else:
-        send("Astronomical Event", "\n".join(messages))
-elif DEBUG:
-    cPrint(f"No astrological events.")
+        cPrint("No astrological phenomena.", "BLUE")
 
-exit(0)
+    cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
+    sys.exit(0)    
+
+if __name__ == "__main__":
+    main()

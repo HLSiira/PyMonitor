@@ -1,148 +1,268 @@
 #!/usr/bin/env python3
 
+##############################################################################80
+# Network Intrusion Scan 20231224 - Device intrusion script
+##############################################################################80
+# This script will scan the network of your choice and will alert you of devices
+# not listed as "allowed" in the database. The alerts are sent through PushOver.
+# By default, all devices will show as untrusted.
+# USAGE via CRON: (Runs every 10 minutes, must be ROOT user)
+#   */10 * * * * cd /path/to/folder && ./checkNET.py 2>&1
+# USAGE via CLI:
+#   cd /path/to/folder && ./checkNET.py (-dn)
+#   Flags:  -d: prints debug messages and doesn't send notification
+#           -n: to use a cached nmap scan, created on first run
+##############################################################################80
+# Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
+# warranty under the MIT License. See [root]/docs/LICENSE.md for more.
+##############################################################################80
+
 import os, sys
 import time
 import json
 import csv
 import statistics
 import subprocess
+import glob
+import re
 
 from datetime import datetime
 from collections import namedtuple
-from utils import send, hasFlag, cPrint, SCANID
+from utils import cPrint, getBaseParser, sendNotification, SCANID
 
-DEBUG = hasFlag("d")
+##############################################################################80
+# Global variables
+##############################################################################80
+parser = getBaseParser("Scans network range for unregistered devices.")
+parser.add_argument("-n", "--noscan", action="store_true", help="Uses generic speedtest.")
+parser.add_argument("-r", "--recalc", action="store_true", help="Recalculates all summaries.")
+args = parser.parse_args()
 
-def byteToHuman(bytes, to, bsize=1024):
-    a = {"k": 1, "m": 2, "g": 3, "t": 4, "p": 5, "e": 6}
-    r = float(bytes)
-    return bytes / (bsize ** a[to])
+SpeedTest = namedtuple("SpeedTest", ("DateTime Ping Download Upload"))
+DailySummary = namedtuple("DailySummary", ("Date AvgPing MinDown AvgDown MaxDown MinUp AvgUp MaxUp"))
 
-
-def byteToBits(bytes, to, bsize=125):
-    a = {"k": 1, "m": 1000, "g": 3, "t": 4, "p": 5, "e": 6}
-    r = float(bytes)
-    return round(bytes / (bsize * a[to]), 2)
-
-
-daily_test = subprocess.Popen('/usr/bin/speedtest -f json', shell=True, stdout=subprocess.PIPE).stdout.read()
-data = json.loads(daily_test.decode('utf-8'))
-
-# f = open("samples/speedtest.json", "r")
-# daily_test = f.read()
-# data = json.loads(daily_test)
-
-ping = str(round(data["ping"]["latency"], 2))
-download = byteToBits(data["download"]["bandwidth"], "m")
-upload = byteToBits(data["upload"]["bandwidth"], "m")
-
-cPrint(f'P{ping}, D{download}, U{upload} - {data["result"]["id"]}')
-
-header = ["DateTime", "Ping", "Download", "Upload"]
-
-SpeedTest = namedtuple("SpeedTest", ("SCANID ping download upload"))
-
-csvToday = f'/home/liam/Artemis/SpeedTest/daily/{time.strftime("%Y%m%d")}.csv'
-csvAnnual = f'/home/liam/Artemis/SpeedTest/yearly/summary_{time.strftime("%Y")}.csv'
-
-TODAY, HISTORY = [], []
-TODAY.append(SpeedTest(SCANID, ping, download, upload))
-
-try:
-    if os.stat(csvToday).st_size != 0:
-        with open(csvToday) as csvfile:
-            readCSV = csv.reader(csvfile, delimiter="|")
-
-            next(readCSV)
-
-            for row in readCSV:
-                row = [item.strip() for item in row]
-                TODAY.append(SpeedTest(*row))
-except:
-    pass
-
-with open(csvToday, "w") as csvfile:
-    writer = csv.writer(csvfile)
-    header = "{:^14} |{:^10} |{:^12} |{:^10}".format(*header).split("|", 0)
-    writer.writerow(header)
-
-    for speedtest in TODAY:
-        speedtest = "{:^14} |{:>10} |{:>12} |{:>10}".format(*speedtest).split("|", 0)
-        writer.writerow(speedtest)
-
-if DEBUG or int(time.strftime("%H")) >= 23:
-
-    Summary = namedtuple(
-        "Summary",
-        (
-            "date average_ping lowest_download average_download highest_download lowest_upload average_upload highest_upload"
-        ),
-    )
-
-    SUMMARY = Summary(
-        time.strftime("%m-%d"),
-        round(statistics.mean([float(test.ping) for test in TODAY]), 2),
-        round(min([float(test.download) for test in TODAY]), 2),
-        round(statistics.mean([float(test.download) for test in TODAY]), 2),
-        round(max([float(test.download) for test in TODAY]), 2),
-        round(min([float(test.upload) for test in TODAY]), 2),
-        round(statistics.mean([float(test.upload) for test in TODAY]), 2),
-        round(max([float(test.upload) for test in TODAY]), 2),
-    )
-    SUMMARY
-    SUMMARY = [
-        SUMMARY.date,
-        SUMMARY.average_ping,
-        f"{SUMMARY.lowest_download}/{SUMMARY.average_download}/{SUMMARY.highest_download}",
-        f"{SUMMARY.lowest_upload}/{SUMMARY.average_upload}/{SUMMARY.highest_upload}",
-    ]
-    
-    HISTORY.append(SUMMARY)
-
+##############################################################################80
+# Run the speed test and return results
+##############################################################################80
+def runSpeedTest():
+    cPrint("Running speed test...", "BLUE") if args.debug else None
+    if args.noscan:
+        return {"ping":{"latency":9.972},"download":{"bandwidth":68768535},"upload":{"bandwidth":2983970}, "result":{"id":"Generated"}}
     try:
-        if os.stat(csvAnnual).st_size >= 0:
-            with open(csvAnnual) as csvfile:
-                readCSV = csv.reader(csvfile, delimiter="|")
+        result = subprocess.run("/usr/bin/speedtest -f json", shell=True, stdout=subprocess.PIPE)
+        return json.loads(result.stdout.decode("utf-8"))
+    except json.JSONDecodeError:
+        cPrint("Error decoding speed test results.", "RED")
+        sys.exit(1)
 
-                next(readCSV)
-                for row in readCSV:
-                    HISTORY.append(row)
-    except:
-        pass
+##############################################################################80
+# Helper: Convert bytes to Megabits.
+##############################################################################80
+def byteToMbits(bytes):
+    return round(bytes * 8 / 10**6, 2)    
 
-    with open(csvAnnual, "w") as csvfile:
+##############################################################################80
+# Process current test into database and save to CSV file.
+##############################################################################80
+def processCurrentTest(currentTest, date):
+    cPrint("Processing hourly test...", "BLUE") if args.debug else None
+    csvToday = f"data/SpeedTest/daily/{date}.csv"
+    allTests = []
 
-        writer = csv.writer(csvfile)
+    # Read from CSV file all previous tests
+    if os.path.exists(csvToday) and os.stat(csvToday).st_size > 0:
+        with open(csvToday, mode="r") as reader:
+            # Create a DictReader, and then strip whitespace from the field names
+            readCSV = csv.DictReader((line.replace("\0", "") for line in reader), delimiter="|")
+            readCSV.fieldnames = [name.strip() for name in readCSV.fieldnames]
+    
+            for row in readCSV:
+                cleanedRow = {k: v.strip() for k, v in row.items()}
+                allTests.append(SpeedTest(**cleanedRow))
 
-        header = [
-            "Date",
-            "Avg Ping(ms)",
-            "Download Speeds(Mb/s)",
-            "Upload Speeds(Mb/s)",
-        ]
-        header = "{:^7}|{:>12}|{:>22}|{:>20}".format(*header)
+    # Append today's test
+    allTests.append(currentTest)
+    
+    # Save all tests to CSV file 
+    header = currentTest._fields
+    header = "{:^14}|{:^6}|{:^8}|{:^8}".format(*header).split("|", 0)    
 
-        writer.writerow(header.split("|", 0))
+    with open(csvToday, "w", newline="") as writer:
+        writeCSV = csv.writer(writer)
+        writeCSV.writerow(header)
 
-        for speedtest in HISTORY:
-            speedtest = "{:^7}|{:^12}|{:^22}|{:^20}".format(*speedtest)
-            writer.writerow(speedtest.split("|", 0))
+        # Write data rows
+        for test in allTests:
+            test = "{:^14}|{:>5} | {:<7}|{:>7}".format(*test).split("|", 0)
+            writeCSV.writerow(test)
 
-    tooOld = time.time() - (90 * 7 * 86400) # 3 months ago
-    path = "data/speedtest/daily"
-    for f in os.listdir(path):
-        f = os.path.join(path, f)
-        if os.stat(f).st_mtime < tooOld and os.path.isfile(f):
-            os.remove(f)
+    return allTests
+    
 
-if float(download) < 400 or float(upload) < 20:
-    speed = SpeedTest(SCANID, ping, download, upload)
-    if DEBUG:
-        print(speed)
+##############################################################################80
+# Process current test into database and save to CSV file.
+##############################################################################80
+def createSummary(todaysTests, date):
+    sumPing, sumDownload, sumUpload = 0, 0, 0
+    minDownload, maxDownload = float('inf'), float('-inf')
+    minUpload, maxUpload = float('inf'), float('-inf')
+    numTests = len(todaysTests)
+
+    for test in todaysTests:
+        ping = float(test.Ping)
+        download = float(test.Download)
+        upload = float(test.Upload)
+
+        sumPing += ping
+        sumDownload += download
+        sumUpload += upload
+
+        minDownload = min(download, minDownload)
+        maxDownload = max(download, maxDownload)
+        
+        minUpload = min(download, minUpload)
+        maxUpload = max(download, maxUpload)
+
+    # Calculate averages and create the summary namedtuple.
+    averagePing = round(sumPing / numTests, 2) if numTests > 0 else 0
+    averageDownload = round(sumDownload / numTests, 2) if numTests > 0 else 0
+    averageUpload = round(sumUpload / numTests, 2) if numTests > 0 else 0
+
+    summary = DailySummary(
+        date,
+        averagePing,
+        round(minDownload, 2),
+        averageDownload,
+        round(maxDownload, 2),
+        round(minUpload, 2),
+        averageUpload,
+        round(maxUpload, 2)
+    )
+
+    return summary
+
+##############################################################################80
+# Process current test into database and save to CSV file.
+##############################################################################80
+def saveTodaysSummary(todaysSummary):
+    cPrint("Processing todays test...", "BLUE") if args.debug else None
+    csvAnnual = f"data/SpeedTest/summaries/{time.strftime('%Y')}.csv"
+    
+    allSummaries = []
+
+    # Read from CSV file all previous tests
+    if os.path.exists(csvAnnual) and os.stat(csvAnnual).st_size > 0:
+        with open(csvAnnual, mode="r") as reader:
+            # Create a DictReader, and then strip whitespace from the field names
+            readCSV = csv.DictReader((line.replace("\0", "") for line in reader), delimiter="|")
+            readCSV.fieldnames = [name.strip() for name in readCSV.fieldnames]
+    
+            for row in readCSV:
+                cleanedRow = {k: v.strip() for k, v in row.items()}
+                rowSummary = DailySummary(**cleanedRow)
+                if rowSummary.Date != todaysSummary.Date:
+                    allSummaries.append()
+
+    # Read from CSV file all previous tests
+    allSummaries.append(todaysSummary)
+    
+    # Save all tests to CSV file 
+    header = todaysSummary._fields
+    header = "{:^10}|{:^7}|{:^8}|{:^8}|{:^8}|{:^8}|{:^8}|{:^8}".format(*header).split("|", 0)    
+
+    with open(csvAnnual, "w", newline="") as writer:
+        writeCSV = csv.writer(writer)
+        writeCSV.writerow(header)
+
+        # Write data rows
+        for test in allSummaries:
+            test = "{:^10}|{:>6} | {:<7}| {:<7}| {:<7}| {:<7}| {:<7}|{:>7}".format(*test).split("|", 0)
+            writeCSV.writerow(test)
+
+##############################################################################80
+# Process current test into database and save to CSV file.
+##############################################################################80
+def recalcAllSummaries(year):
+    cPrint("Recalculating all summaries...", "BLUE") if args.debug else None
+    csvAnnual = f"data/SpeedTest/summaries/{year}.csv"
+    dailyFolder = "data/SpeedTest/daily/"
+    
+    allSummaries = []
+    
+    # for root, dirs, files in os.walk(dailyFolder):
+    pattern = f"{year}*.csv"  # Pattern for files like '2023xxxx.csv'
+    for dailyPath in glob.glob(os.path.join(dailyFolder, pattern)):
+            # Read from CSV file all previous tests
+        if os.stat(dailyPath).st_size == 0:
+            continue
+        
+        allTests = []
+        date = re.search(r'(\d{4}\d{2}\d{2})', dailyPath).group(1)
+
+        with open(dailyPath, mode="r") as reader:
+            # Create a DictReader, and then strip whitespace from the field names
+            readCSV = csv.DictReader((line.replace("\0", "") for line in reader), delimiter="|")
+            readCSV.fieldnames = [name.strip() for name in readCSV.fieldnames]
+    
+            for row in readCSV:
+                cleanedRow = {k: v.strip() for k, v in row.items()}
+                allTests.append(SpeedTest(**cleanedRow))
+
+        currentSummary = createSummary(allTests, date)
+        allSummaries.append(currentSummary)
+
+    # Save all tests to CSV file 
+    header = allSummaries[0]._fields
+    header = "{:^10}|{:^7}|{:^8}|{:^8}|{:^8}|{:^8}|{:^8}|{:^8}".format(*header).split("|", 0)    
+
+    with open(csvAnnual, "w", newline="") as writer:
+        writeCSV = csv.writer(writer)
+        writeCSV.writerow(header)
+
+        # Write data rows
+        for test in allSummaries:
+            test = "{:^10}|{:>6} | {:<7}| {:<7}| {:<7}| {:<7}| {:<7}|{:>7}".format(*test).split("|", 0)
+            writeCSV.writerow(test)
+
+    return allSummaries
+
+
+##############################################################################80
+# Begin main execution
+##############################################################################80
+def main():
+    cPrint(f"Beginning main execution...", "BLUE") if args.debug else None
+
+    currentTest = runSpeedTest()
+    ping = round(currentTest["ping"]["latency"], 2)
+    download = byteToMbits(currentTest["download"]["bandwidth"])
+    upload = byteToMbits(currentTest["upload"]["bandwidth"])
+
+    cPrint(f"P{ping}, D{download}, U{upload} - {currentTest['result']['id']}")
+
+    currentTest = SpeedTest(SCANID, ping, download, upload)
+    
+    date = time.strftime('%Y%m%d')
+    todaysTests = processCurrentTest(currentTest, date)
+    todaysSummary = createSummary(todaysTests, date)
+    if args.recalc:
+        recalcAllSummaries(time.strftime('%Y'))
     else:
-        cPrint(f"Connection speeds outside of defined bounderies...Sending alert...")
-        subject = f'ISP: P{ping}, D{download}, U{upload}'
-        send("ISP Speed Alert", subject)
-else:
-    cPrint(f"Connection speeds within defined bounderies.")
-exit(0)
+        saveTodaysSummary(todaysSummary)
+    
+
+    if float(download) < 400 or float(upload) < 20 or args.test:
+        cPrint("Speeds outside of boundaries, sending notification...", "RED")
+        subject = f"ISP Speed Alert"
+        message = f"ISP: P{ping}, D{download}, U{upload}"
+            
+        if args.debug:
+            cPrint(subject)
+            cPrint(message)
+        else:
+            sendNotification(subject, message)            
+    else:
+        cPrint("Speeds within defined boundaries.", "BLUE")
+
+if __name__ == "__main__":
+    main()
