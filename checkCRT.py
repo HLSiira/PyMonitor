@@ -1,118 +1,125 @@
 #!/usr/bin/env python3
 
+##############################################################################80
+# Certbot Automated Renew 20231226
+##############################################################################80
+# Description: This script uses Certbot to renew SSL certificates and sends a
+# notification about the renewal status. Requires root privileges
+##############################################################################80
+# Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
+# warranty under the MIT License. See [root]/docs/LICENSE.md for more.
+##############################################################################80
+
 import subprocess
-import os, sys
-import re
+import os, re, sys
 from datetime import datetime
+from utils import checkSudo, cPrint, getBaseParser, sendNotification
 
-from utils import send, hasFlag, cPrint, SCANID
+##############################################################################80
+# Global variables
+##############################################################################80
+parser = getBaseParser("Leverages Certbot to renew SSL Certs. Requires sudo privileges.")
+args = parser.parse_args()
 
-DEBUG = hasFlag("d")
-
-def combine_subdomains(domains):
-    domain_groups = {}
+##############################################################################80
+# Combine subdomains into a more digestable format
+##############################################################################80
+def combineSubdomains(domains):
+    cPrint(f"Combining subdomains...", "BLUE") if args.debug else None
+    domainGroups = {}
     for domain in domains:
         # Extract the main domain and subdomain part
-        parts = domain.split('.')
-        main_domain = '.'.join(parts[-2:])
-        subdomain = '.'.join(parts[:-2])
+        parts = domain.split(".")
+        mainDomain = ".".join(parts[-2:])
+        subdomain = ".".join(parts[:-2])
 
-        if main_domain not in domain_groups:
-            domain_groups[main_domain] = set()
+        if mainDomain not in domainGroups:
+            domainGroups[mainDomain] = set()
 
         if subdomain and subdomain != "www":
-            domain_groups[main_domain].add(subdomain)
+            domainGroups[mainDomain].add(subdomain)
 
     combined = []
-    for main_domain, subdomains in domain_groups.items():
-        # if "www" in subdomains:
-        #     subdomains.remove("www")
-        #     main_domain = "<i>www.</i>" + main_domain
-        # else:
-        #     main_domain = "    " + main_domain
-            
+    for mainDomain, subdomains in domainGroups.items():
         if subdomains:
-            # Combine subdomains into a single entry
-            subdomains_str = ', '.join(sorted(subdomains))
-            main_domain = f"{main_domain} <i>(+{subdomains_str})</i>"
+            subdomainsStr = ", ".join(sorted(subdomains))
+            mainDomain = f"{mainDomain} <i>(+{subdomainsStr})</i>"
 
-        combined.append(main_domain)
+        combined.append(mainDomain)
 
-    return sorted(combined, key=lambda d: d.split(' ', 1)[0])
+    return sorted(combined, key=lambda d: d.split(" ", 1)[0])
 
-def get_certificate_details():
-    # Run 'certbot certificates' to get details of all certificates
-    cert_result = subprocess.run(['certbot', 'certificates'], capture_output=True, text=True)
-    cert_output = cert_result.stdout
+##############################################################################80
+# Pull certificate details from Certbot
+##############################################################################80
+def getCertificateDetails():
+    cPrint(f"Pulling cert details...", "BLUE") if args.debug else None    
+    # Run "certbot certificates" to get details of all certificates
+    certResult = subprocess.run(["certbot", "certificates"], capture_output=True, text=True)
+    certOutput = certResult.stdout
 
     # Parse the output to extract certificate details
     certs = []
-    for cert in cert_output.split("Certificate Name:")[1:]:
-        name = re.search(r'^\s*(\S+)', cert).group(1)
-        domains = re.search(r'Domains:\s*(.+)', cert).group(1).strip().split()
-        domains = combine_subdomains(domains)
-        expiry = re.search(r'Expiry Date:.*?(\d{4}-\d{2}-\d{2})', cert).group(1)
+    for cert in certOutput.split("Certificate Name:")[1:]:
+        name = re.search(r"^\s*(\S+)", cert).group(1)
+        domains = re.search(r"Domains:\s*(.+)", cert).group(1).strip().split()
+        domains = combineSubdomains(domains)
+        expiry = re.search(r"Expiry Date:.*?(\d{4}-\d{2}-\d{2})", cert).group(1)
         expiry = datetime.strptime(expiry, "%Y-%m-%d").strftime("%Y%m%d")  # Convert string to datetime
-        certs.append({'name': name, 'domains': domains, 'expiry': expiry})
+        certs.append({"name": name, "domains": domains, "expiry": expiry})
     
     return certs[0]
 
-subject, message = "",""
+##############################################################################80
+# Attempt to renew certs
+##############################################################################80
+def renewCerts():
+    cPrint(f"Renewing certs...", "BLUE") if args.debug else None
+    try:
+        result = subprocess.run(["certbot", "renew"], capture_output=True, text=True, timeout=600)
+        return "Congratulations" in result.stdout
+    except Exception as e:
+        raise RuntimeError(f"Certbot renewal error: {e}")
 
-try:
-    # Run the certbot renew command
-    result = subprocess.run(["certbot", "renew"], capture_output=True, text=True, timeout=600)
-    output = result.stdout
-    
-#     output = """
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Processing /etc/letsencrypt/renewal/20231223.conf
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Simulating renewal of an existing certificate for promo.airpoweraugusta.com and 30 more domains
+##############################################################################80
+# Being Main execution
+##############################################################################80
+def main():
+    cPrint(f"Beginning main execution...", "BLUE") if args.debug else None
+    checkSudo()
+    subject, message = "", ""
+    certRenewed = False
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Processing /etc/letsencrypt/renewal/promo.airpoweraugusta.com.conf
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Simulating renewal of an existing certificate for promo.airpoweraugusta.com and 30 more domains
+    try:
+        certRenewed = renewCerts()
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Congratulations, all simulated renewals succeeded:
-#   /etc/letsencrypt/live/20231223/fullchain.pem (success)
-#   /etc/letsencrypt/live/promo.airpoweraugusta.com/fullchain.pem (success)
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"""
+        if certRenewed or args.test:
+            cPrint("Certbot renewals, sending notification...", "GREEN")
+            cert = getCertificateDetails()
+            subject = f"Certbot renewal for {len(cert['domains'])} domains"
+            message = "<b>Domains renewed:</b>"
+            for domain in cert["domains"]:
+                message += f"\n\t- {domain}"
+            message += f"\n<b>Cert expires: {cert['expiry']}</b>"
 
-    # Check if any certificates were actually renewed
-    if "Congratulations" in output:
-        # Get updated certificate details
-        cert = get_certificate_details()
-        
-        # Extracting domain names and their new expiry dates
-        domains = cert['domains']
-        # expiries = re.findall(r"(?:VALID: )[^\(]+(\([^)]+\))", output)
-
-        subject = f"Certbot renewal for {len(domains)} domains"
-        message = "<b>Domains renewed:</b>"
-
-        for domain in domains:
-            message += f"\n\t- {domain}"
-            # message += f"Name: {cert['name']}, Domains: {', '.join(cert['domains'])}, Expiry: {cert['expiry']}\n"
-        
-        message += f"\n<b>Cert expires: {cert['expiry']}</b>"
+        else:
+            cPrint("No Certbot renewals.", "BLUE")
 
 
-        cPrint("Certbot renewals, sending notification...")
-    else:
-        cPrint("No Certbot renewals.")
+    except RuntimeError as err:
+        cPrint("Certbot error occurred, sending notification...", "RED")
+        subject = "Certbot renewal error"
+        message = str(err)
 
-except Exception as e:
-    cPrint("Certbot error occurred, sending notification...")
-    subject = "Cerbot error"
-    message = f"Certificate renewal error:\n{e}"
+    if certRenewed or args.test:
+        if args.debug:
+            cPrint(subject)
+            cPrint(message)
+        else:
+            sendNotification(subject, message)
 
-if DEBUG:
-    print(subject)
-    print(message)
-else:
-    send(subject, message)
+    cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
+    sys.exit(0)   
 
-exit(0)
+if __name__ == "__main__":
+    main()

@@ -1,14 +1,19 @@
 #!/usr/bin/python3
 
-"""
-Description:
-    A log file curtailer, used to manage log sizes for custom commands. High performance not guaranteed with marge maximum ceilings.
-
-Usage:
-    Line Mode: echo -ne "$(date)\n" | ./tailog.py -lm 100 -f cron.log
-    Byte Mode: echo -ne "$(date)\n" | ./tailog.py -bm 500 -f cron.log
-"""
-
+##############################################################################80
+# Taillog 20231224 - Tagline
+##############################################################################80
+# Description
+#   A log file curtailer, used to manage log sizes for custom commands. High
+#   performance not guaranteed with marge maximum ceilings.
+# Usage:
+#   Line Mode: echo -ne "$(date)\n" | ./tailog.py -lm 100 -f cron.log
+#   Byte Mode: echo -ne "$(date)\n" | ./tailog.py -bm 500 -f cron.log
+##############################################################################80
+# Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
+# warranty under the MIT License. See [root]/docs/LICENSE.md for more.
+# This information must remain intact.
+##############################################################################80
 
 from sys import stdin
 import os
@@ -16,12 +21,12 @@ import argparse
 
 parser = argparse.ArgumentParser(description="Create a tailog.")
 
-parser.add_argument("-f", dest="path", metavar="FilePath", type=str, default='data/cron.log', help="the path of the tailog to be created")
-parser.add_argument('-m', dest='ceil', metavar='MAXSIZE', type=int, default=100, help='the byte/line limit to the tailog to (default 100)')
+parser.add_argument("-f", dest="path", metavar="FilePath", type=str, default="data/cron.log", help="the path of the tailog to be created")
+parser.add_argument("-m", dest="ceil", metavar="MAXSIZE", type=int, default=100, help="the byte/line limit to the tailog to (default 100)")
 
 group = parser.add_mutually_exclusive_group()
-group.add_argument('-l', dest='mode', action='store_const', const='line', help='limit the log by line count', default='line')
-group.add_argument('-b', dest='mode', action='store_const', const='byte', help='limit the log by byte count')
+group.add_argument("-l", dest="mode", action="store_const", const="line", help="limit the log by line count", default="line")
+group.add_argument("-b", dest="mode", action="store_const", const="byte", help="limit the log by byte count")
 
 args = parser.parse_args()
 
