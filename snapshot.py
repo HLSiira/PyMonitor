@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 ##############################################################################80
-# Creates backups and sends to cloud storage using rClone 20231227
+# Automatic rClone Backups 20231227
 ##############################################################################80
-# Description: Checks system information and sends notification if outside
+# Description: Creates backups and sends to cloud storage using rClone
 # predefined bounderies.
 # USAGE via CRON: (Runs every 15 minutes)
 #   */15 * * * * cd /path/to/folder && ./checkSYS.py 2>&1 | ./tailog.py
@@ -12,6 +12,7 @@
 #   Flags:  -c: Formats messages into loggable format, with more information.
 #           -d: activates debug messages during run, to track progress.
 #           -q: disables push notifications, prints message to terminal.
+#           -s: Skip compressing, only backup and cleanup.
 #           -t: overrides passing conditions to test notifications.
 ##############################################################################80
 # Copyright (c) Liam Siira (www.siira.io), distributed as-is and without
@@ -27,7 +28,7 @@ from utils import cPrint, getBaseParser, sendNotification, CONF, HOSTNAME
 # Global variables
 ##############################################################################80
 parser = getBaseParser("Creates backups and sends to cloud storage using rClone.")
-parser.add_argument("-s", "--skipCompress", action="store_true", help="Skip compressing, only backup and cleanup")
+parser.add_argument("-s", "--skipCompress", action="store_true", help="Skip compressing, only backup and cleanup.")
 args = parser.parse_args()
 
 ##############################################################################80
@@ -74,11 +75,12 @@ def cleanUp(name, deleteAfter):
 ##############################################################################80
 # rClone to cloud storage
 ##############################################################################80
-def rCloneToCloud(method="copy"):
+def rCloneToCloud():
     cPrint(f"rCloning to cloud storage...", "BLUE") if args.debug else None
     cloudPath = CONF["backup"]["cloudPath"] + HOSTNAME
+    method = CONF["backup"]["rCloneMethod"] if "rCloneMethod" in CONF["backup"] else "copy"
     try:
-        subprocess.run(["rclone", "sync", BACKUPPATH, cloudPath], check=True, capture_output=True)
+        subprocess.run(["rclone", method, BACKUPPATH, cloudPath], check=True, capture_output=True)
         return False, "RClone sync successful"
     except subprocess.CalledProcessError:
         return True, "RClone sync failed"
