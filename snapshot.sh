@@ -1,37 +1,60 @@
 #!/bin/bash
 
-HOST="HTML"
-echo "$HOST autobackup started" 
-
-BACKUP="/home/liam/Artemis/$HOST"
-TARGET="/var/www/html"
+#=============================================================================80
+# Configuration Settings
+#=============================================================================80
+HOST="Artemis"
+USER_KEY=""
+API_TOKEN=""
 AGEOFF="90"
+BACKUP_DIR=""
+WEEKNUM=$(date +"%V")
 
-read YY MMM DD <<<$(date +"%y %^b %d")
+#=============================================================================80
+# Function to send Pushover notification
+#=============================================================================80
+sendNotification() {
+    local message=$1
+    curl -s \
+      --form-string "token=$API_TOKEN" \
+      --form-string "user=$USER_KEY" \
+      --form-string "title=$HOST: Backup Alert" \
+      --form-string "message=$MESSAGE" \
+      --form-string "priority=1" \
+      --form-string "ttl=43200" \
+      https://api.pushover.net/1/messages.json >/dev/null 2>&1
+}
 
-WK="W$((($DD-1)/7+1))"
+#=============================================================================80
+# HTML Backup
+#=============================================================================80
+NAME="HTML"
+echo -e "$NAME backup started" 
+BACKUP="/home/liam/Artemis/$NAME"
+TARGET="/var/www/html"
+mkdir -p "$BACKUP" || { sendNotification "Cannot create directory for $NAME"; return 1; }
 
-echo -e "\tCompressing and saving as $HOST-$MMM-$WK.tar.gz"
-tar --exclude-vcs -zcf $BACKUP/$HOST-$MMM-$WK.tar.gz -C $TARGET .
+ARCHIVE="$NAME-W$WEEKNUM.tar.gz"
+echo -e "Compressing and saving as $ARCHIVE"
+tar --exclude-vcs -zcf "$BACKUP/$ARCHIVE" -C "$TARGET" . || { sendNotification "TAR command failed on $NAME"; return 1; }
 
-echo -e "\tDeleting older TARs and snapshots"
-find $BACKUP -type f -mtime +$AGEOFF -delete
+echo -e "Deleting older TARs and snapshots of $TARGET"
+find "$BACKUP" -type f -mtime +"$AGEOFF" -delete || { sendNotification "Cleanup failed on $NAME"; return 1; }
 
-##################################
-
-HOST=Speedtest
+#=============================================================================80
+# Speedtest Backup
+#=============================================================================80
+NAME=Speedtest
+echo -e "$NAME backup started" 
 TARGET="/home/liam/Artemis/SpeedTest"
 
-echo "$HOST autobackup started" 
+echo -e "Deleting archives older than 3 months"
+find "$TARGET/daily" -type f -mtime +"$AGEOFF" -delete || { sendNotification "Cleanup failed on $NAME"; return 1; }
 
-# DO NOT DELETE ARCHIVE FOLDER
-echo -e "\tDeleting archives older than 3 months"
-days=$(( ( $(date '+%s') - $(date -d '3 months ago' '+%s') ) / 86400 ))
-# find $desdir/*.tar.gz -mtime +$days -type f -delete
-find $TARGET/daily/* -mtime +90 -type f -delete
-
-
-echo -e "\tRCloning to Google Drive"
-TARGET="/home/liam/Artemis"
-rclone sync $TARGET liam-siira-drive:Backup/Servers/Artemis
-echo -e "\tRClone finished"
+#=============================================================================80
+# rClone to Google Drive
+#=============================================================================80
+echo -e "RCloning to Google Drive"
+RCLONE_TARGET="drive-liam-siira:Backup/Servers/$HOST"
+rclone sync "/home/liam/$HOST" "$RCLONE_TARGET" || { sendNotification "RClone sync failed"; exit 1; }
+echo -e "Daily Backup and RClone finished"
