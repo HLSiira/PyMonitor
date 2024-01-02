@@ -137,7 +137,7 @@ def main():
 
     metrics = [isMercuryInRetrograde(), getMoonPhase(), checkSeasonStart(), checkMoonDistance()]
 
-    message = "<b>Astrological Phenomena Metrics:</b>"
+    message = "<b>Phenomena:</b>"
     sendNotice = False
 
     for notice,state in metrics:
@@ -146,12 +146,12 @@ def main():
         message += f"\n\t- {state}"
         
     if sendNotice or args.test:
-        cPrint("Events detected, sending notification...", "RED")
+        cPrint("Astrological events detected, sending notification...", "RED")
         subject = "Astrological phenomena detected"
 
         sendNotification(subject, message)            
     else:
-        cPrint("No astrological phenomena.", "BLUE")
+        cPrint("No astrological events.", "BLUE")
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
     sys.exit(0)    
