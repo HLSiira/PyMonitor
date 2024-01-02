@@ -51,11 +51,27 @@ def createDirectory(name):
 ##############################################################################80
 # 
 ##############################################################################80
-def compress(archive, source):
-    cPrint(f"Compressing and saving as {archive}...", "BLUE") if args.debug else None
+def compress(name, source, compression="xz"):
+    cPrint(f"Compressing {name}...", "BLUE") if args.debug else None
 
+    weeknum = datetime.now().strftime("%V")
     try:
-        subprocess.run(["tar", "--exclude-vcs", "-zcf", f"{BACKUPPATH}/{archive}", "-C", source, "."], check=True)
+        archive = f"{name}/{name}-WK{weeknum}"
+        if compression == "gzip": # Fastest, low compression
+            archive += ".tar.gz"
+            subprocess.run(["tar", "--exclude-vcs", "-zcf", f"{BACKUPPATH}/{archive}", "-C", source, "."], check=True)
+            
+        elif compression == "zstd": # Fast, medium compression
+            archive += ".tar.zst"
+            subprocess.run(["tar", "--exclude-vcs", "--zstd", "-cf", f"{BACKUPPATH}/{archive}", "-C", source, "."], check=True)
+
+        elif compression == "xz": # Slowest, highest compression
+            archive += ".tar.xt"
+            subprocess.run(["tar", "--exclude-vcs", "-cJf", f"{BACKUPPATH}/{archive}", "-C", source, "."], check=True)
+            
+        else:
+            return True, f"Unrecognized compression format on {name}"
+
         return False, f"{archive} created and stored"
     except subprocess.CalledProcessError:
         return True, f"TAR command failed on {name}"
@@ -101,9 +117,7 @@ def main():
         metrics.append(createDirectory(name))
 
         if item["compress"] and not args.skipCompress:
-            weeknum = datetime.now().strftime("%V")
-            archive = f"{name}/{name}-WK{weeknum}.tar.gz"
-            metrics.append(compress(archive, path))
+            metrics.append(compress(name, path))
 
         if item["cleanup"]:
             metrics.append(cleanUp(name, deleteAfter))
