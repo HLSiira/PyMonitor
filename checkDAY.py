@@ -35,24 +35,24 @@ args = parser.parse_args()
 storagePath = CONF["keyDates"]["storagePath"]
 threshold = CONF["keyDates"]["threshold"]
 
+
 ##############################################################################80
 # Check if today is a supermoon
 ##############################################################################80
-# def getFutureDates():
-#     today = datetime.now()
-#     futureDates = [today + timedelta(days=i) for i in range(threshold)]
-#     futureDates = [date.strftime("%m-%d") for date in futureDates]  # Convert to string format for comparison
-#     return futureDates
+def calculateAge(anniversary, today):
+    age = today.year - anniversary.year - ((today.month, today.day) < (anniversary.month, anniversary.day))
+    return age
 
 ##############################################################################80
 # Check if today is a supermoon
 ##############################################################################80
 def checkDate():
+    cPrint(f"Comparing dates...", "BLUE") if args.debug else None
     today = datetime.now()
     today = today.replace(hour=0, minute=0, second=0, microsecond=0)
     # futureDates = getFutureDates()
     
-    events = []
+    events = {}
 
     with open(storagePath, newline='') as csvfile:
         reader = csv.DictReader(csvfile)
@@ -60,17 +60,22 @@ def checkDate():
             event = datetime.strptime(row["Event Value"], "%Y-%m-%d")
             anniversary = event.replace(year=today.year)
             if 0 <= (anniversary - today).days < threshold:  # Check if the event is within the next 7 days
-                events.append({
+                structuredEvent = {
                     "name": f"{row['Given Name']} {row['Family Name']}",
-                    "event": row["Event Type"].lower(),
-                    "anniversary": anniversary,
-                    "date": event.strftime("%b %d, %Y"),
+                    "type": row["Event Type"],
+                    "year": event.year,
+                    "age": today.year - event.year,
                     "isToday": (anniversary == today)
-                })
+                }
+                anniversary = anniversary.strftime("%b %d")
+                if anniversary not in events:
+                	events[anniversary] = [structuredEvent]
+                else:
+                	events[anniversary].append(structuredEvent)
+                	
                 
     # Sort the events by date
-    events.sort(key=lambda x: x["anniversary"])
-
+    events = dict(sorted(events.items()))
     return events
 
 def main():
@@ -80,13 +85,19 @@ def main():
 
     if any(events) or args.test:
         cPrint("Key events today, sending notification...", "RED")
-        subject = "Some notable events coming up..."
-        message = "<b>Notable Events:</b>"
-        for event in events:
-            if event["isToday"]:
-                message += f"\n\t- <b>{event['name']}'s {event['event']} on {event['date']}<\b>"
-            else:
-                message += f"\n\t- {event['name']}'s {event['event']} on {event['date']}"
+        subject = "Notable event(s) coming:"
+        message = ""
+        for date in events.keys():
+        	newline = "\n" if message != "" else ""
+        	if events[date][0]["isToday"]:
+        		message += f"{newline}<b><font color='#0074D9'>- {date} (today):</font></b>"
+        	else:
+        		message += f"{newline}<b>- {date}:</b>"
+        	for event in events[date]:
+	            if event["type"] == "annual appointment":
+	                message += f"\n\t- <b><font color='#ff4d3e'>{event['type']}: {event['name']}</font><\b>"
+	            else:
+	                message += f"\n\t- {event['type']}: {event['name']} ({event['year']}/{event['age']}y)"
 
         sendNotification(subject, message)            
     else:
