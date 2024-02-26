@@ -107,7 +107,7 @@ def loadDatabase(filepath):
     database = {}
     if not os.path.exists(filepath):
         return False
-        
+
     with open(filepath, mode="r") as reader:
         # Create a DictReader, and then strip whitespace from the field names
         readCSV = csv.DictReader((line.replace("\0", "") for line in reader), delimiter="|")
@@ -117,7 +117,7 @@ def loadDatabase(filepath):
             cleaned_row = {k: v.strip() for k, v in row.items()}
             database[cleaned_row["MAC"]] = Device(**cleaned_row)
     return database
-    
+
 ##############################################################################80
 # Function to save device database to CSV
 ##############################################################################80
@@ -149,7 +149,7 @@ def searchVendor(mac):
     url = f"https://api.macvendors.com/{mac}"
     try:
         response = requests.get(url)
-        if DEBUG:
+        if args.debug:
             cPrint(response.text)
         if response.status_code == 200:
             return response.text  # The vendor name
@@ -190,7 +190,7 @@ def processScan(scan, database):
 ##############################################################################80
 def processNewDevices(database):
     cPrint("Processing database for new devices...", "BLUE") if args.debug else None
-    
+
     newDevices = 0
     message = "<b>New devices:</b>"
     for mac, device in database.items():
@@ -198,7 +198,7 @@ def processNewDevices(database):
             cPrint(f"Device detected: {device.MAC} by {device.Vendor} on {device.IP}", "RED")
             newDevices += 1
             ip, vendor = device.IP, device.Vendor
-            vendor = f"<font color="#ff4d3e">{vendor}</font>" if vendor == "unknown" else vendor
+            vendor = f"<font color=\"#ff4d3e\">{vendor}</font>" if vendor == "unknown" else vendor
             type = "detected" if device.Status == "intruder" else "resurfaced"
             message += f"\n\t - {mac} {type} on {ip} by {vendor}."
 
@@ -224,13 +224,13 @@ def main():
 
     scan = getNmapScan(netRange, scanpath)
     data = loadDatabase(datapath)
-    
+
     data = processScan(scan, data)
     processNewDevices(data)
     saveDatabase(datapath, data)
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
-    sys.exit(0)   
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()
