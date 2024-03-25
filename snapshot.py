@@ -66,7 +66,7 @@ def compress(name, source, compression="xz"):
             subprocess.run(["tar", "--exclude-vcs", "--zstd", "-cf", f"{BACKUPPATH}/{archive}", "-C", source, "."], check=True)
 
         elif compression == "xz": # Slowest, highest compression
-            archive += ".tar.xt"
+            archive += ".tar.xz"
             subprocess.run(["tar", "--exclude-vcs", "-cJf", f"{BACKUPPATH}/{archive}", "-C", source, "."], check=True)
             
         else:
