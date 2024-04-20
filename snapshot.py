@@ -71,6 +71,13 @@ def compress(name, source, compression="xz"):
             
         else:
             return True, f"Unrecognized compression format on {name}"
+            
+        cPrint(f"Encrypting {name}...", "BLUE") if args.debug else None
+        if os.path.exists(f"{BACKUPPATH}/{archive}.gpg"):
+        	os.remove(f"{BACKUPPATH}/{archive}.gpg")
+        subprocess.run(["gpg", "--symmetric", "--cipher-algo", "AES256", "--batch", "--passphrase", f"{CONF['backup']['password']}", "-o", f"{BACKUPPATH}/{archive}.gpg", f"{BACKUPPATH}/{archive}"], check=True)
+        if os.path.exists(f"{BACKUPPATH}/{archive}"):
+        	os.remove(f"{BACKUPPATH}/{archive}")
 
         return False, f"{archive} created and stored"
     except subprocess.CalledProcessError:
