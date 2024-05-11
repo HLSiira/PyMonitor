@@ -74,7 +74,7 @@ def loadDatabase(filepath):
     cPrint("Reading device database...", "BLUE") if args.debug else None
     database = {}
     if not os.path.exists(filepath):
-        return False
+        return database
 
     with open(filepath, mode="r") as reader:
         # Create a DictReader, and then strip whitespace from the field names
@@ -125,7 +125,7 @@ def requestCert(domain):
         return print(' '.join(command))
 
     try:
-        return subprocess.run(command, check=True, capture_output=True, text=True, timeout=600)
+        return subprocess.run(command, check=True, capture_output=True, text=True, timeout=6000)
     except subprocess.CalledProcessError as e:
         cPrint(f"Error requesting cert for {domain}: {e}", "RED") if args.debug else None
         return False
@@ -150,7 +150,7 @@ def renewCerts(domain):
         return print(' '.join(command))
         
     try:
-        result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=600)
+        result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=6000)
         return "Congratulations" in result.stdout or "Successfully" in result.stdout
     except subprocess.CalledProcessError as e:
         cPrint(f"Certbot renewal error for {domain}: {e}", "RED") if args.debug else None
