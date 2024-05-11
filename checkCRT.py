@@ -106,6 +106,19 @@ def saveDatabase(filepath, data):
             writeCSV.writerow(details)
     return True
 
+def installCert(domain):
+    cPrint(f"Installing cert for {domain}...", "BLUE") if args.debug else None
+    command = [
+        'sudo', 'certbot', '--apache',
+        '--cert-name', domain,
+        '--non-interactive'
+    ]
+    try:
+        return subprocess.run(command, check=True, capture_output=True, text=True, timeout=600)
+    except subprocess.CalledProcessError as e:
+        cPrint(f"Certbot installation error for {domain}: {e}", "RED") if args.debug else None
+        return False
+
 ##############################################################################80
 # Attempt to request certs
 ##############################################################################80
@@ -117,7 +130,7 @@ def requestCert(domain):
         domains += ['-d', f'{root}']
 
     command = [
-        'sudo', 'certbot', 'certonly', '--dns-cloudflare',
+        'sudo', 'certbot', 'certonly', '--non-interactive', '--dns-cloudflare',
         '--dns-cloudflare-credentials', '/etc/security/cloudflare.ini',
         ] + domains + ['--cert-name', domain]
 
@@ -183,8 +196,6 @@ def main():
     checkSudo()
     subject, message = "", []
     
-    max = 4
-
     database = loadDatabase(datapath)
 
     try:
@@ -192,18 +203,13 @@ def main():
         database = dict(sorted(database.items()))
 
         for domain, tuple in database.items():
-            if tuple.status in ["new", "pending"]:
-                if max > 0 and requestCert(domain):
-                    message.append(f"\n\t- Requested {domain}")
-                    tuple = tuple._replace(expires=TP90.strftime("%Y%m%d%H%M"), status="active")
-                    max -= 1
-                else:
-                    message.append(f"\n\t- Pending {domain}")
-                    tuple = tuple._replace(expires=TP90.strftime("%Y%m%d%H%M"), status="pending")
-            elif tuple.status == "inactive":
-                if revokeCert(domain):
-                    message.append(f"\n\t- Revoked {domain}")
-                    tuple = tuple._replace(status="revoked")
+            if tuple.status == "new" and requestCert(domain):
+                installCert(domain)
+                message.append(f"\n\t- Activated {domain}")
+                tuple = tuple._replace(expires=TP90.strftime("%Y%m%d%H%M"), status="active")
+            elif tuple.status == "inactive" and revokeCert(domain):
+                message.append(f"\n\t- Revoked {domain}")
+                tuple = tuple._replace(status="revoked")
             elif tuple.status == "active":
                 lastActive = datetime.strptime(tuple.lastActive, "%Y%m%d%H%M")
                 if lastActive < TM30:
