@@ -102,7 +102,8 @@ def main():
         cPrint("All systems nominal.", "BLUE")
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
-    sys.exit(0)   
+    pingHealth()
+    sys.exit(0)  
 
 if __name__ == "__main__":
     main()

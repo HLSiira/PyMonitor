@@ -31,7 +31,7 @@ import re
 
 from datetime import datetime
 from collections import namedtuple
-from utils import cPrint, getBaseParser, sendNotification, SCANID, CONF
+from utils import cPrint, getBaseParser, pingHealth, sendNotification, SCANID, CONF
 
 ##############################################################################80
 # Global variables
@@ -268,6 +268,9 @@ def main():
         sendNotification(subject, message)            
     else:
         cPrint("Speeds within defined boundaries.", "BLUE")
+
+    cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
+    pingHealth()
     sys.exit(0)
 
 if __name__ == "__main__":

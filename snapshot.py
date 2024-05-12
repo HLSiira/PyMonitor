@@ -22,7 +22,7 @@
 import os, sys
 import subprocess
 from datetime import datetime
-from utils import cPrint, getBaseParser, sendNotification, CONF, HOSTNAME
+from utils import cPrint, getBaseParser, pingHealth, sendNotification, CONF, HOSTNAME
 
 ##############################################################################80
 # Global variables
@@ -148,6 +148,7 @@ def main():
         cPrint("Backup successful.", "BLUE")
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
+    pingHealth()
     sys.exit(0)   
 
 if __name__ == "__main__":

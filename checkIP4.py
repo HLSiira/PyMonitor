@@ -19,7 +19,7 @@
 ##############################################################################80
 
 import sys, re, requests
-from utils import getBaseParser, cPrint, sendNotification, formatIP, CONF
+from utils import getBaseParser, cPrint, pingHealth, sendNotification, formatIP, CONF
 
 ##############################################################################80
 # Global variables
@@ -82,8 +82,10 @@ def main():
         sendNotification(subject, message)            
     else:
         cPrint(f"No change, public IP address is {newIP}.")
+
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
-    sys.exit(0)    
+    pingHealth()
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()

@@ -21,7 +21,7 @@
 import os, re, sys
 from datetime import datetime, timedelta
 import csv
-from utils import cPrint, getBaseParser, sendNotification, CONF
+from utils import cPrint, getBaseParser, pingHealth, sendNotification, CONF
 
 ##############################################################################80
 # Global variables
@@ -102,8 +102,9 @@ def main():
 	else:
 		cPrint("No key dates.", "BLUE")
 
-	cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
-	sys.exit(0)	
+    cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
+    pingHealth()
+    sys.exit(0)
 
 if __name__ == "__main__":
 	main()

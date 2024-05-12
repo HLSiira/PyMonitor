@@ -24,7 +24,7 @@ import ephem
 from requests import get
 import time
 from datetime import datetime, timedelta
-from utils import cPrint, getBaseParser, sendNotification
+from utils import cPrint, getBaseParser, pingHealth, sendNotification
 
 ##############################################################################80
 # Global variables
@@ -140,10 +140,10 @@ def main():
     message = "<b>Phenomena:</b>"
     sendNotice = False
 
-    for notice,state in metrics:
+    for notice, state in metrics:
         if notice:
             sendNotice = True
-        message += f"\n\t- {state}"
+            message += f"\n\t- {state}"
         
     if sendNotice or args.test:
         cPrint("Astrological events detected, sending notification...", "RED")
@@ -154,7 +154,8 @@ def main():
         cPrint("No astrological events.", "BLUE")
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
-    sys.exit(0)    
+    pingHealth()
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()
