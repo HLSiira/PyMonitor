@@ -132,10 +132,10 @@ def saveDatabase(filepath, data):
 
         for mac, details in data.items():
             # Parse the LastHeard date and update the status if it"s more than 30 days ago
-            lastHeard = datetime.strptime(details.LastHeard, "%Y%m%d%H%M")  # Adjust the format if different
+            #lastHeard = datetime.strptime(details.LastHeard, "%Y%m%d%H%M")  # Adjust the format if different
 
-            if lastHeard < thirtyDaysAgo:
-                details = details._replace(Status="inactive")
+            #if lastHeard < thirtyDaysAgo:
+            #    details = details._replace(Status="inactive")
 
             details = "{:^10}|{:<30}|{:>17}|{:^15}|{:>12}|{:>12}|{:<30}".format(*details).split("|", 0)
             writeCSV.writerow(details)
@@ -168,20 +168,24 @@ def processScan(scan, database):
         ip = device["ip"]
         device = database.get(mac, Device(Status="intruder", Name="unknown", MAC=mac, IP=ip, FirstHeard=SCANID, LastHeard=SCANID, Vendor="unknown"))
 
-        if device.Status == "inactive":
-            device = device._replace(Status="resurfaced")
-        elif device.Status == "resurfaced":
-            device = device._replace(Status="active")
+#        if device.Status == "inactive":
+#            device = device._replace(Status="resurfaced")
+#        elif device.Status == "resurfaced":
+#            device = device._replace(Status="active")
 
         vendor = device.Vendor
         if vendor == "unknown":
             vendor = searchVendor(mac)
+
+        vendor = vendor.replace(",", "").replace(".", "")
 
         # Update data to the latest scan
         device = device._replace(LastHeard=SCANID, IP=ip, Vendor=vendor)
 
         # Update the database with the new or updated device
         database[mac] = device
+
+    database = {k: v for k, v in sorted(database.items(), key=lambda item: item[1].IP)}
 
     return database
 
@@ -194,7 +198,7 @@ def processNewDevices(database):
     newDevices = 0
     message = "<b>New devices:</b>"
     for mac, device in database.items():
-        if device.Status != "allowed":
+        if device.Status not in "allowed":
             cPrint(f"Device detected: {device.MAC} by {device.Vendor} on {device.IP}", "RED")
             newDevices += 1
             ip, vendor = device.IP, device.Vendor
