@@ -23,7 +23,7 @@ import os, re, sys
 from datetime import datetime, timedelta
 import csv
 from collections import namedtuple
-from utils import checkSudo, cPrint, getBaseParser, sendNotification, SCANID
+from utils import checkSudo, cPrint, getBaseParser, pingHealth, sendNotification, SCANID
 
 ##############################################################################80
 # Global variables
@@ -36,6 +36,56 @@ TP30 = datetime.now() + timedelta(days=30) # 30 days from now
 TP90 = datetime.now() + timedelta(days=90) # 90 days from now
 
 Domain = namedtuple("Domain", ("status lastActive expires"))
+
+##############################################################################80
+# Combine subdomains into a more digestable format
+##############################################################################80
+def combineSubdomains(domains):
+    cPrint(f"Combining subdomains...", "BLUE") if args.debug else None
+    domainGroups = {}
+    for domain in domains:
+        # Extract the main domain and subdomain part
+        parts = domain.split(".")
+        mainDomain = ".".join(parts[-2:])
+        subdomain = ".".join(parts[:-2])
+
+        if mainDomain not in domainGroups:
+            domainGroups[mainDomain] = set()
+
+        if subdomain and subdomain != "www":
+            domainGroups[mainDomain].add(subdomain)
+
+    combined = []
+    for mainDomain, subdomains in domainGroups.items():
+        if subdomains:
+            subdomainsStr = ", ".join(sorted(subdomains))
+            mainDomain = f"{mainDomain} <i>(+{subdomainsStr})</i>"
+
+        combined.append(mainDomain)
+
+    return sorted(combined, key=lambda d: d.split(" ", 1)[0])
+
+##############################################################################80
+# Pull certificate details from Certbot
+##############################################################################80
+def getCertificateDetails():
+    cPrint(f"Pulling cert details...", "BLUE") if args.debug else None    
+    # Run "certbot certificates" to get details of all certificates
+    certResult = subprocess.run(["certbot", "certificates"], capture_output=True, text=True)
+    certOutput = certResult.stdout
+
+    # Parse the output to extract certificate details
+    certs = []
+    for cert in certOutput.split("Certificate Name:")[1:]:
+        name = re.search(r"^\s*(\S+)", cert).group(1)
+        domains = re.search(r"Domains:\s*(.+)", cert).group(1).strip().split()
+        # domains = combineSubdomains(domains)
+        expiry = re.search(r"Expiry Date:.*?(\d{4}-\d{2}-\d{2})", cert).group(1)
+        expiry = datetime.strptime(expiry, "%Y-%m-%d").strftime("%Y%m%d")  # Convert string to datetime
+        certs.append({"name": name, "domains": domains, "expiry": expiry})
+    
+    return certs
+
 ##############################################################################80
 # Pull enabled sites from apache2
 ##############################################################################80
@@ -197,6 +247,15 @@ def main():
     subject, message = "", []
     
     database = loadDatabase(datapath)
+    
+    if args.debug:
+        activeCerts = getCertificateDetails()
+        details = ""
+
+        for cert in activeCerts:
+            details += f"\n- {cert['name']} - E{cert['expiry']}: {cert['domains']}"
+            
+        print(details)
 
     try:
         database = getActiveDomains(database)
@@ -240,7 +299,8 @@ def main():
         sendNotification(subject, message)
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
-    sys.exit(0)   
+    pingHealth()
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()

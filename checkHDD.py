@@ -27,7 +27,7 @@ import csv
 from datetime import datetime
 from collections import namedtuple
 
-from utils import cPrint, getBaseParser, sendNotification, CONF, checkSudo
+from utils import cPrint, getBaseParser, pingHealth, sendNotification, CONF, checkSudo
 
 ##############################################################################80
 # Global variables
@@ -289,6 +289,7 @@ def main():
     text += "\n * Pre-fail attributes, replace the disk if > 0"
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
+    pingHealth()
     sys.exit(0)
 
 if __name__ == "__main__":

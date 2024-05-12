@@ -17,7 +17,7 @@
 ##############################################################################80
 import os, re, sys
 from datetime import datetime, timedelta
-from utils import checkSudo, cPrint, formatIP, getBaseParser, sendNotification
+from utils import checkSudo, cPrint, formatIP, getBaseParser, pingHealth, sendNotification
 
 ##############################################################################80
 # Global variables
@@ -81,7 +81,8 @@ def main():
         cPrint("No SSH activity found.", "BLUE")
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
-    sys.exit(0)   
+    pingHealth()
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()

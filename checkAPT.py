@@ -20,7 +20,7 @@
 
 import os, sys, subprocess
 import apt, apt_pkg
-from utils import cPrint, getBaseParser, sendNotification
+from utils import cPrint, getBaseParser, pingHealth, sendNotification
 
 ##############################################################################80
 # Global variables
@@ -165,6 +165,8 @@ def main():
     else:
         cPrint("No package updates.", "BLUE")
 
+    cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
+    pingHealth()
     sys.exit(0)
 
 if __name__ == "__main__":

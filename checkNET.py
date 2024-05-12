@@ -25,7 +25,7 @@ import csv
 import requests
 from collections import namedtuple
 from datetime import datetime, timedelta
-from utils import checkSudo, cPrint, formatIP, getBaseParser, sendNotification, SCANID
+from utils import checkSudo, cPrint, formatIP, getBaseParser, pingHealth, sendNotification, SCANID
 
 ##############################################################################80
 # Global variables
@@ -230,6 +230,7 @@ def main():
     saveDatabase(datapath, data)
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
+    pingHealth()
     sys.exit(0)
 
 if __name__ == "__main__":
