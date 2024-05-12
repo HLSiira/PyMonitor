@@ -3,8 +3,8 @@
 ##############################################################################80
 #
 ##############################################################################80
-# Description: 
-# 
+# Description:
+#
 # Usage via CRON: (Runs every day at 0703)
 #   3 7 * * * cd /path/to/folder && ./checkIP4.py --cron 2>&1 | ./tailog.py
 # Usage via CLI:
@@ -25,9 +25,12 @@ from utils import getBaseParser, cPrint, sendNotification, CONF
 # Global variables
 ##############################################################################80
 parser = getBaseParser("Sends notification based on input stream.")
-parser.add_argument('-s', '--service', help='Name of the calling service', default='Unknown Service')
-parser.add_argument('message', nargs='+', help='The message to send')
+parser.add_argument(
+    "-s", "--service", help="Name of the calling service", default="Unknown Service"
+)
+parser.add_argument("message", nargs="+", help="The message to send")
 args = parser.parse_args()
+
 
 ##############################################################################80
 # Being Main execution
@@ -36,13 +39,14 @@ def main():
     cPrint(f"Beginning main execution...", "BLUE") if args.debug else None
 
     subject = f"{args.service} Alert"
-    message = ' '.join(args.message)
-    #message = sys.argv[1:]
+    message = " ".join(args.message)
+    # message = sys.argv[1:]
 
     sendNotification(subject, message)
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

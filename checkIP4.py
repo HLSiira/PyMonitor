@@ -3,7 +3,7 @@
 ##############################################################################80
 # IPv4 Check 20231227
 ##############################################################################80
-# Description: Pulls public IP Address from a configured api and sends a 
+# Description: Pulls public IP Address from a configured api and sends a
 # notification upon change; useful for potentially non-static IP assignments.
 # Usage via CRON: (Runs every day at 0703)
 #   3 7 * * * cd /path/to/folder && ./checkIP4.py --cron 2>&1 | ./tailog.py
@@ -27,6 +27,7 @@ from utils import getBaseParser, cPrint, pingHealth, sendNotification, formatIP,
 parser = getBaseParser("Sends notification if IPv4 address has changed.")
 args = parser.parse_args()
 
+
 ##############################################################################80
 # Get public IP from website
 ##############################################################################80
@@ -45,6 +46,7 @@ def getPublicIP():
         cPrint(f"Error fetching IP: {e}", "RED")
         sys.exit(1)
 
+
 ##############################################################################80
 # Read old IP from file
 ##############################################################################80
@@ -56,13 +58,15 @@ def readOldIP(path="data/ipaddress"):
     except FileNotFoundError:
         return False
 
+
 ##############################################################################80
 # Save new IP to file
 ##############################################################################80
-def saveNewIP(ip,path="data/ipaddress"):
+def saveNewIP(ip, path="data/ipaddress"):
     cPrint(f"Saving new IP...", "BLUE") if args.debug else None
     with open(path, "w") as f:
         f.write(ip)
+
 
 ##############################################################################80
 # Being Main execution
@@ -79,13 +83,14 @@ def main():
         subject = "IP address changed"
         message = f"IP Address has changed from {oldIP} to {newIP}"
 
-        sendNotification(subject, message)            
+        sendNotification(subject, message)
     else:
         cPrint(f"No change, public IP address is {newIP}.")
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
     pingHealth()
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

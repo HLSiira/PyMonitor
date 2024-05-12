@@ -29,6 +29,7 @@ from utils import cPrint, getBaseParser, sendNotification, CONF
 parser = getBaseParser("Scans SSH Auth log and signals last 7 days of activity.")
 args = parser.parse_args()
 
+
 ##############################################################################80
 # Helper: Convert to display human readable sizes
 ##############################################################################80
@@ -41,6 +42,7 @@ def bytesToHuman(bytes):
     s = round(bytes / p)
     return s, sizes[i]
 
+
 ##############################################################################80
 # Check CPU usage
 ##############################################################################80
@@ -49,11 +51,12 @@ def checkCPU(threshold=85):
     percentage = psutil.cpu_percent(interval=1)
     return percentage > threshold, f"CPU usage: {percentage}%"
 
+
 ##############################################################################80
 # Checks system memory usage.
 ##############################################################################80
 def checkMemory(threshold=75):
-    cPrint(f"Checking Memory...", "BLUE") if args.debug else None    
+    cPrint(f"Checking Memory...", "BLUE") if args.debug else None
     memory = psutil.virtual_memory()
     percentage = memory.used / memory.total * 100
     used, cat = bytesToHuman(memory.used)
@@ -61,49 +64,56 @@ def checkMemory(threshold=75):
     state = f"Memory: {used}/{total}{cat} ({percentage:.0f}%)"
     return percentage > threshold, state
 
+
 ##############################################################################80
 # Check storage disk usage
 ##############################################################################80
 def checkStorage(threshold=80):
-    cPrint(f"Checking Storage...", "BLUE") if args.debug else None    
+    cPrint(f"Checking Storage...", "BLUE") if args.debug else None
     storage = psutil.disk_usage("/")
     percentage = storage.used / storage.total * 100
     used, cat = bytesToHuman(storage.used)
     total, cat = bytesToHuman(storage.total)
-    state = f"Storage: {used}/{total}{cat} ({percentage:.0f}%)" 
+    state = f"Storage: {used}/{total}{cat} ({percentage:.0f}%)"
     return percentage > threshold, state
+
 
 ##############################################################################80
 # Begin main execution
 ##############################################################################80
 def main():
     cPrint(f"Beginning main execution...", "BLUE") if args.debug else None
-    
+
     cpuThreshold = CONF["systemHealth"]["CPU"]
     memoryThreshold = CONF["systemHealth"]["memory"]
     storageThreshold = CONF["systemHealth"]["storage"]
 
-    metrics = [checkCPU(cpuThreshold), checkMemory(memoryThreshold), checkStorage(storageThreshold)]
+    metrics = [
+        checkCPU(cpuThreshold),
+        checkMemory(memoryThreshold),
+        checkStorage(storageThreshold),
+    ]
 
     message = "<b>System Metrics:</b>"
     sendNotice = False
 
-    for warning,state in metrics:
+    for warning, state in metrics:
         if warning:
             sendNotice = True
         message += f"\n\t- {state}"
-        
+
     if sendNotice or args.test:
         cPrint(f"System alert, sending notification...", "RED")
         subject = "System health alert"
 
-        sendNotification(subject, message)            
+        sendNotification(subject, message)
     else:
         cPrint("All systems nominal.", "BLUE")
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
     pingHealth()
-    sys.exit(0)  
+    sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

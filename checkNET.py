@@ -25,13 +25,26 @@ import csv
 import requests
 from collections import namedtuple
 from datetime import datetime, timedelta
-from utils import checkSudo, cPrint, formatIP, getBaseParser, pingHealth, sendNotification, SCANID
+from utils import (
+    checkSudo,
+    cPrint,
+    formatIP,
+    getBaseParser,
+    pingHealth,
+    sendNotification,
+    SCANID,
+)
 
 ##############################################################################80
 # Global variables
 ##############################################################################80
 parser = getBaseParser("Scans network range for unregistered devices.")
-parser.add_argument("-n", "--noscan", action="store_true", help="Uses cached scanlog, requires initial run.")
+parser.add_argument(
+    "-n",
+    "--noscan",
+    action="store_true",
+    help="Uses cached scanlog, requires initial run.",
+)
 args = parser.parse_args()
 
 
@@ -43,6 +56,7 @@ datapath = "data/devices.csv"
 netRange = "192.168.1.1/24"
 thirtyDaysAgo = datetime.now() - timedelta(days=30)
 
+
 ##############################################################################80
 # Launch NMAP and scan the network mask provided
 ##############################################################################80
@@ -52,7 +66,11 @@ def getNmapScan(netRange, scanlog):
     # Run nmap scan of netRange, save xml to scanlog file
     if not args.noscan:
         try:
-            subprocess.run(["sudo", "nmap", "-v", "-sn", netRange, "-oX", scanlog], check=True, capture_output=True)
+            subprocess.run(
+                ["sudo", "nmap", "-v", "-sn", netRange, "-oX", scanlog],
+                check=True,
+                capture_output=True,
+            )
 
         except subprocess.CalledProcessError as e:
             cPrint(f"Error running nmap: {e}", "RED")
@@ -77,7 +95,7 @@ def getNmapScan(netRange, scanlog):
                 state = attrib.attrib["state"]
             if attrib.tag == "address":
                 if attrib.attrib["addrtype"] == "mac":
-                     mac = attrib.attrib["addr"]
+                    mac = attrib.attrib["addr"]
                 if attrib.attrib["addrtype"] == "ipv4":
                     ip = formatIP(attrib.attrib["addr"])
                 if "vendor" in attrib.attrib:
@@ -99,6 +117,8 @@ def getNmapScan(netRange, scanlog):
 
 
 Device = namedtuple("Device", ("Status Name MAC IP FirstHeard LastHeard Vendor"))
+
+
 ##############################################################################80
 # Function to load device databas from CSV
 ##############################################################################80
@@ -110,13 +130,16 @@ def loadDatabase(filepath):
 
     with open(filepath, mode="r") as reader:
         # Create a DictReader, and then strip whitespace from the field names
-        readCSV = csv.DictReader((line.replace("\0", "") for line in reader), delimiter="|")
+        readCSV = csv.DictReader(
+            (line.replace("\0", "") for line in reader), delimiter="|"
+        )
         readCSV.fieldnames = [name.strip() for name in readCSV.fieldnames]
 
         for row in readCSV:
             cleaned_row = {k: v.strip() for k, v in row.items()}
             database[cleaned_row["MAC"]] = Device(**cleaned_row)
     return database
+
 
 ##############################################################################80
 # Function to save device database to CSV
@@ -127,19 +150,24 @@ def saveDatabase(filepath, data):
 
     with open(filepath, "w") as writer:
         writeCSV = csv.writer(writer)
-        header = "{:^10}|{:^30}|{:^17}|{:^15}|{:^12}|{:^12}|{:^30}".format(*header).split("|", 0)
+        header = "{:^10}|{:^30}|{:^17}|{:^15}|{:^12}|{:^12}|{:^30}".format(
+            *header
+        ).split("|", 0)
         writeCSV.writerow(header)
 
         for mac, details in data.items():
             # Parse the LastHeard date and update the status if it"s more than 30 days ago
-            #lastHeard = datetime.strptime(details.LastHeard, "%Y%m%d%H%M")  # Adjust the format if different
+            # lastHeard = datetime.strptime(details.LastHeard, "%Y%m%d%H%M")  # Adjust the format if different
 
-            #if lastHeard < thirtyDaysAgo:
+            # if lastHeard < thirtyDaysAgo:
             #    details = details._replace(Status="inactive")
 
-            details = "{:^10}|{:<30}|{:>17}|{:^15}|{:>12}|{:>12}|{:<30}".format(*details).split("|", 0)
+            details = "{:^10}|{:<30}|{:>17}|{:^15}|{:>12}|{:>12}|{:<30}".format(
+                *details
+            ).split("|", 0)
             writeCSV.writerow(details)
     return True
+
 
 ##############################################################################80
 # Parse scan to determine new devices, update devices.csv
@@ -158,6 +186,7 @@ def searchVendor(mac):
     except requests.RequestException:
         return "failed"
 
+
 ##############################################################################80
 # Parse scan to determine new devices, update devices.csv
 ##############################################################################80
@@ -166,12 +195,23 @@ def processScan(scan, database):
     for device in scan:
         mac = device["mac"]
         ip = device["ip"]
-        device = database.get(mac, Device(Status="intruder", Name="unknown", MAC=mac, IP=ip, FirstHeard=SCANID, LastHeard=SCANID, Vendor="unknown"))
+        device = database.get(
+            mac,
+            Device(
+                Status="intruder",
+                Name="unknown",
+                MAC=mac,
+                IP=ip,
+                FirstHeard=SCANID,
+                LastHeard=SCANID,
+                Vendor="unknown",
+            ),
+        )
 
-#        if device.Status == "inactive":
-#            device = device._replace(Status="resurfaced")
-#        elif device.Status == "resurfaced":
-#            device = device._replace(Status="active")
+        #        if device.Status == "inactive":
+        #            device = device._replace(Status="resurfaced")
+        #        elif device.Status == "resurfaced":
+        #            device = device._replace(Status="active")
 
         vendor = device.Vendor
         if vendor == "unknown":
@@ -189,6 +229,7 @@ def processScan(scan, database):
 
     return database
 
+
 ##############################################################################80
 # Pretty print device details
 ##############################################################################80
@@ -199,10 +240,17 @@ def processNewDevices(database):
     message = "<b>New devices:</b>"
     for mac, device in database.items():
         if device.Status not in "allowed":
-            cPrint(f"Device detected: {device.MAC} by {device.Vendor} on {device.IP}", "RED")
+            cPrint(
+                f"Device detected: {device.MAC} by {device.Vendor} on {device.IP}",
+                "RED",
+            )
             newDevices += 1
             ip, vendor = device.IP, device.Vendor
-            vendor = f"<font color=\"#ff4d3e\">{vendor}</font>" if vendor == "unknown" else vendor
+            vendor = (
+                f'<font color="#ff4d3e">{vendor}</font>'
+                if vendor == "unknown"
+                else vendor
+            )
             type = "detected" if device.Status == "intruder" else "resurfaced"
             message += f"\n\t - {mac} {type} on {ip} by {vendor}."
 
@@ -236,6 +284,7 @@ def main():
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
     pingHealth()
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

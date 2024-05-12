@@ -41,12 +41,13 @@ def create_package_url(package_name):
     base_url = "https://packages.ubuntu.com/search?keywords="
     return f"{base_url}{package_name}"
 
+
 ##############################################################################80
 # Check for package updates
 ##############################################################################80
 def getAptUpdates():
     cPrint("Checking for package updates...", "BLUE") if args.debug else None
-    
+
     comPacks = []
 
     apt_pkg.init()
@@ -102,6 +103,7 @@ def getAptUpdates():
 
     return comPacks, secCount
 
+
 ##############################################################################80
 # Helper: Parses out security information
 ##############################################################################80
@@ -112,11 +114,12 @@ def securityHelper(version):
         ("Debian", "%s-updates" % DISTRO),
     ]
 
-    for (file, index) in version.file_list:
+    for file, index in version.file_list:
         for origin, archive in security_pockets:
             if file.archive == archive and file.origin == origin:
                 return True
     return False
+
 
 ##############################################################################80
 # Check if package update is security related
@@ -138,6 +141,7 @@ def isSecurityUpgrade(pack, version):
 
     return False
 
+
 ##############################################################################80
 # Being Main execution
 ##############################################################################80
@@ -152,7 +156,7 @@ def main():
         cPrint("APT Updates found, sending notification....", "BLUE")
         subject = f"{len(comPacks)}/{secCount} Updatable Package(s)"
         message = "<b>Packages:</b>"
-        
+
         for pack in comPacks:
             url = create_package_url(pack["name"])
             name = f"{pack['name'][:21]}..." if len(pack["name"]) > 24 else pack["name"]
@@ -160,7 +164,7 @@ def main():
                 message += f"\n\t- <font color='#ff4d3e'>{name}</font>"
             else:
                 message += f"\n\t- {name}"
-        
+
         sendNotification(subject, message)
     else:
         cPrint("No package updates.", "BLUE")
@@ -168,6 +172,7 @@ def main():
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
     pingHealth()
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

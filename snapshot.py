@@ -28,13 +28,19 @@ from utils import cPrint, getBaseParser, pingHealth, sendNotification, CONF, HOS
 # Global variables
 ##############################################################################80
 parser = getBaseParser("Creates backups and sends to cloud storage using rClone.")
-parser.add_argument("-s", "--skipCompress", action="store_true", help="Skip compressing, only backup and cleanup.")
+parser.add_argument(
+    "-s",
+    "--skipCompress",
+    action="store_true",
+    help="Skip compressing, only backup and cleanup.",
+)
 args = parser.parse_args()
 
 ##############################################################################80
 # Configuration Settings
 ##############################################################################80
 BACKUPPATH = CONF["backup"]["backupPath"]
+
 
 ##############################################################################80
 # Create backup directory
@@ -48,8 +54,9 @@ def createDirectory(name):
     except subprocess.CalledProcessError:
         return True, f"Directory creation failed on {name}"
 
+
 ##############################################################################80
-# 
+#
 ##############################################################################80
 def compress(name, source, compression="xz"):
     cPrint(f"Compressing {name}...", "BLUE") if args.debug else None
@@ -57,43 +64,100 @@ def compress(name, source, compression="xz"):
     weeknum = datetime.now().strftime("%V")
     try:
         archive = f"{name}/{name}-WK{weeknum}"
-        if compression == "gzip": # Fastest, low compression
+        if compression == "gzip":  # Fastest, low compression
             archive += ".tar.gz"
-            subprocess.run(["tar", "--exclude-vcs", "-zcf", f"{BACKUPPATH}/{archive}", "-C", source, "."], check=True)
-            
-        elif compression == "zstd": # Fast, medium compression
-            archive += ".tar.zst"
-            subprocess.run(["tar", "--exclude-vcs", "--zstd", "-cf", f"{BACKUPPATH}/{archive}", "-C", source, "."], check=True)
+            subprocess.run(
+                [
+                    "tar",
+                    "--exclude-vcs",
+                    "-zcf",
+                    f"{BACKUPPATH}/{archive}",
+                    "-C",
+                    source,
+                    ".",
+                ],
+                check=True,
+            )
 
-        elif compression == "xz": # Slowest, highest compression
+        elif compression == "zstd":  # Fast, medium compression
+            archive += ".tar.zst"
+            subprocess.run(
+                [
+                    "tar",
+                    "--exclude-vcs",
+                    "--zstd",
+                    "-cf",
+                    f"{BACKUPPATH}/{archive}",
+                    "-C",
+                    source,
+                    ".",
+                ],
+                check=True,
+            )
+
+        elif compression == "xz":  # Slowest, highest compression
             archive += ".tar.xz"
-            subprocess.run(["tar", "--exclude-vcs", "-cJf", f"{BACKUPPATH}/{archive}", "-C", source, "."], check=True)
-            
+            subprocess.run(
+                [
+                    "tar",
+                    "--exclude-vcs",
+                    "-cJf",
+                    f"{BACKUPPATH}/{archive}",
+                    "-C",
+                    source,
+                    ".",
+                ],
+                check=True,
+            )
+
         else:
             return True, f"Unrecognized compression format on {name}"
-            
+
         cPrint(f"Encrypting {name}...", "BLUE") if args.debug else None
         if os.path.exists(f"{BACKUPPATH}/{archive}.gpg"):
-        	os.remove(f"{BACKUPPATH}/{archive}.gpg")
-        subprocess.run(["gpg", "--symmetric", "--cipher-algo", "AES256", "--batch", "--passphrase", f"{CONF['backup']['password']}", "-o", f"{BACKUPPATH}/{archive}.gpg", f"{BACKUPPATH}/{archive}"], check=True)
+            os.remove(f"{BACKUPPATH}/{archive}.gpg")
+        subprocess.run(
+            [
+                "gpg",
+                "--symmetric",
+                "--cipher-algo",
+                "AES256",
+                "--batch",
+                "--passphrase",
+                f"{CONF['backup']['password']}",
+                "-o",
+                f"{BACKUPPATH}/{archive}.gpg",
+                f"{BACKUPPATH}/{archive}",
+            ],
+            check=True,
+        )
         if os.path.exists(f"{BACKUPPATH}/{archive}"):
-        	os.remove(f"{BACKUPPATH}/{archive}")
+            os.remove(f"{BACKUPPATH}/{archive}")
 
         return False, f"{archive} created and stored"
     except subprocess.CalledProcessError:
         return True, f"TAR command failed on {name}"
 
+
 ##############################################################################80
 # Delete files older than the expiry period
 ##############################################################################80
 def cleanUp(name, deleteAfter):
-    cPrint(f"Deleting archives older than {deleteAfter} days...", "BLUE") if args.debug else None
+    (
+        cPrint(f"Deleting archives older than {deleteAfter} days...", "BLUE")
+        if args.debug
+        else None
+    )
     backup = f"{BACKUPPATH}/{name}"
     try:
-        subprocess.run(["find", f"{backup}", "-type", "f", "-mtime", f"+{deleteAfter}", "-delete"], check=True)
+        subprocess.run(
+            ["find", f"{backup}", "-type", "f", "-mtime", f"+{deleteAfter}", "-delete"],
+            check=True,
+        )
         return False, f"Cleanup successful for {name}"
     except subprocess.CalledProcessError:
         return True, f"Cleanup failed on {name}"
+
 
 ##############################################################################80
 # rClone to cloud storage
@@ -101,12 +165,17 @@ def cleanUp(name, deleteAfter):
 def rCloneToCloud():
     cPrint(f"rCloning to cloud storage...", "BLUE") if args.debug else None
     cloudPath = CONF["backup"]["cloudPath"] + HOSTNAME
-    method = CONF["backup"]["rCloneMethod"] if "rCloneMethod" in CONF["backup"] else "copy"
+    method = (
+        CONF["backup"]["rCloneMethod"] if "rCloneMethod" in CONF["backup"] else "copy"
+    )
     try:
-        subprocess.run(["rclone", method, BACKUPPATH, cloudPath], check=True, capture_output=True)
+        subprocess.run(
+            ["rclone", method, BACKUPPATH, cloudPath], check=True, capture_output=True
+        )
         return False, "RClone sync successful"
     except subprocess.CalledProcessError:
         return True, "RClone sync failed"
+
 
 ##############################################################################80
 # Begin main execution
@@ -134,7 +203,7 @@ def main():
     message = "<b>Process status:</b>"
     sendNotice = False
 
-    for warning,state in metrics:
+    for warning, state in metrics:
         if warning:
             sendNotice = True
         message += f"\n\t- {state}"
@@ -149,7 +218,8 @@ def main():
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
     pingHealth()
-    sys.exit(0)   
+    sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

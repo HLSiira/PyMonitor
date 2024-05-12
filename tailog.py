@@ -21,12 +21,39 @@ import argparse
 
 parser = argparse.ArgumentParser(description="Create a tailog.")
 
-parser.add_argument("-f", dest="path", metavar="FilePath", type=str, default="data/cron.log", help="the path of the tailog to be created")
-parser.add_argument("-m", dest="ceil", metavar="MAXSIZE", type=int, default=100, help="the byte/line limit to the tailog to (default 100)")
+parser.add_argument(
+    "-f",
+    dest="path",
+    metavar="FilePath",
+    type=str,
+    default="data/cron.log",
+    help="the path of the tailog to be created",
+)
+parser.add_argument(
+    "-m",
+    dest="ceil",
+    metavar="MAXSIZE",
+    type=int,
+    default=100,
+    help="the byte/line limit to the tailog to (default 100)",
+)
 
 group = parser.add_mutually_exclusive_group()
-group.add_argument("-l", dest="mode", action="store_const", const="line", help="limit the log by line count", default="line")
-group.add_argument("-b", dest="mode", action="store_const", const="byte", help="limit the log by byte count")
+group.add_argument(
+    "-l",
+    dest="mode",
+    action="store_const",
+    const="line",
+    help="limit the log by line count",
+    default="line",
+)
+group.add_argument(
+    "-b",
+    dest="mode",
+    action="store_const",
+    const="byte",
+    help="limit the log by byte count",
+)
 
 args = parser.parse_args()
 

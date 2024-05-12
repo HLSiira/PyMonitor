@@ -32,6 +32,7 @@ from utils import cPrint, getBaseParser, pingHealth, sendNotification
 parser = getBaseParser("Checks for astrological phenomena.")
 args = parser.parse_args()
 
+
 ##############################################################################80
 # Check if today is a supermoon
 ##############################################################################80
@@ -41,7 +42,9 @@ def checkMoonDistance():
     today = datetime.now()
 
     moon.compute(today)
-    distance = moon.earth_distance * ephem.meters_per_au / 1000  # distance in kilometers
+    distance = (
+        moon.earth_distance * ephem.meters_per_au / 1000
+    )  # distance in kilometers
 
     # Criteria for supermoon and micromoon
     isSupermoon = moon.phase >= 98 and distance < 360000
@@ -54,19 +57,23 @@ def checkMoonDistance():
     else:
         return False, "Nothing special about today's moon."
 
+
 ##############################################################################80
 # Check if Mercury is in retrograde
 ##############################################################################80
 def isMercuryInRetrograde():
     cPrint("Looking for Mercury...", "BLUE") if args.debug else None
-    
+
     today = datetime.now().strftime("%Y-%m-%d")
     response = get(f"https://mercuryretrogradeapi.com?date={today}")
-    retrograde = response.status_code == 200 and response.json().get("is_retrograde", False)
+    retrograde = response.status_code == 200 and response.json().get(
+        "is_retrograde", False
+    )
     if retrograde:
         return True, "Mercury is in retrograde today!"
     else:
         return False, "Mercury isn't in retrograde today."
+
 
 ##############################################################################80
 # Check if the moon was full last night
@@ -79,7 +86,7 @@ def getMoonPhase():
     base_url = "https://aa.usno.navy.mil/api/moon/phases/date"
 
     # Query parameters
-    params = {"date": yesterday, "ID":"hlsiira"}
+    params = {"date": yesterday, "ID": "hlsiira"}
 
     try:
         response = get(base_url, params=params)
@@ -96,14 +103,15 @@ def getMoonPhase():
         else:
             return False, "Failed to retrieve moon phase data."
     except Exception as e:
-        return False, f"Error while retrieving moon phase: {e}"    
+        return False, f"Error while retrieving moon phase: {e}"
+
 
 ##############################################################################80
 # Check if today is solstice or equinox
 ##############################################################################80
 def checkSeasonStart():
     cPrint("Determining if today is special...", "BLUE") if args.debug else None
-    
+
     # Get the current year and today's date
     day = datetime.now().day
     month = datetime.now().month
@@ -113,7 +121,7 @@ def checkSeasonStart():
     base_url = "https://aa.usno.navy.mil/api/seasons"
 
     # Query parameters
-    params = {"year": year, "ID":"hlsiira"}
+    params = {"year": year, "ID": "hlsiira"}
 
     try:
         response = get(base_url, params=params)
@@ -127,7 +135,8 @@ def checkSeasonStart():
         else:
             return False, "Failed to retrieve seasonal data."
     except Exception as e:
-        return False, f"Error while retrieving seasonal data: {e}"  
+        return False, f"Error while retrieving seasonal data: {e}"
+
 
 ##############################################################################80
 # Being Main execution
@@ -135,7 +144,12 @@ def checkSeasonStart():
 def main():
     cPrint("Beginning main execution...", "BLUE") if args.debug else None
 
-    metrics = [isMercuryInRetrograde(), getMoonPhase(), checkSeasonStart(), checkMoonDistance()]
+    metrics = [
+        isMercuryInRetrograde(),
+        getMoonPhase(),
+        checkSeasonStart(),
+        checkMoonDistance(),
+    ]
 
     message = "<b>Phenomena:</b>"
     sendNotice = False
@@ -144,18 +158,19 @@ def main():
         if notice:
             sendNotice = True
             message += f"\n\t- {state}"
-        
+
     if sendNotice or args.test:
         cPrint("Astrological events detected, sending notification...", "RED")
         subject = "Astrological phenomena detected"
 
-        sendNotification(subject, message)            
+        sendNotification(subject, message)
     else:
         cPrint("No astrological events.", "BLUE")
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
     pingHealth()
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

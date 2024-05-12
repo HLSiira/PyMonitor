@@ -17,13 +17,21 @@
 ##############################################################################80
 import os, re, sys
 from datetime import datetime, timedelta
-from utils import checkSudo, cPrint, formatIP, getBaseParser, pingHealth, sendNotification
+from utils import (
+    checkSudo,
+    cPrint,
+    formatIP,
+    getBaseParser,
+    pingHealth,
+    sendNotification,
+)
 
 ##############################################################################80
 # Global variables
 ##############################################################################80
 parser = getBaseParser("Scans SSH Auth log and signals last 7 days of activity.")
 args = parser.parse_args()
+
 
 def parseLogins(logFile="/var/log/auth.log"):
     cPrint("Parsing SSH Logins...", "BLUE") if args.debug else None
@@ -57,7 +65,8 @@ def parseLogins(logFile="/var/log/auth.log"):
                             entries[key] += 1
                         else:
                             entries[key] = 1
-    return entries    
+    return entries
+
 
 ##############################################################################80
 # Being Main execution
@@ -83,6 +92,7 @@ def main():
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
     pingHealth()
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

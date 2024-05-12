@@ -40,11 +40,14 @@ args = parser.parse_args()
 ##############################################################################80
 datapath = CONF["drives"]["storagePath"]
 
+
 ##############################################################################80
 # Queries S.M.A.R.T. data for a given drive.
 ##############################################################################80
 def querySMART(drive):
-    p = subprocess.Popen(["/usr/sbin/smartctl", "-a", "/dev/" + drive], stdout=subprocess.PIPE)
+    p = subprocess.Popen(
+        ["/usr/sbin/smartctl", "-a", "/dev/" + drive], stdout=subprocess.PIPE
+    )
     (output, err) = p.communicate()
     output = output.decode("utf-8")
 
@@ -105,11 +108,14 @@ def querySMART(drive):
 
     return alert, health
 
+
 ##############################################################################80
 # Queries RAID status using mdadm.
 ##############################################################################80
 def queryMDADM(raid):
-    p = subprocess.Popen(["/usr/sbin/mdadm", "--detail", "/dev/" + raid], stdout=subprocess.PIPE)
+    p = subprocess.Popen(
+        ["/usr/sbin/mdadm", "--detail", "/dev/" + raid], stdout=subprocess.PIPE
+    )
     (output, err) = p.communicate()
     output = output.decode("utf-8")
 
@@ -138,14 +144,17 @@ def queryMDADM(raid):
 
         if "/dev/" in line:
             line = line.split(" ")
-            if len(line) < 3: continue
-            device = [i for i, s in enumerate(line) if '/dev' in s][0]
+            if len(line) < 3:
+                continue
+            device = [i for i, s in enumerate(line) if "/dev" in s][0]
             health[line[device]] = "/".join(line[4:device])
 
     return alert, health
 
 
 Drive = namedtuple("Drive", "Name FirstHeard LastHeard Health_Data")
+
+
 ##############################################################################80
 # Function to load device databas from CSV
 ##############################################################################80
@@ -157,13 +166,16 @@ def loadDatabase(filepath):
 
     with open(filepath, mode="r") as reader:
         # Create a DictReader, and then strip whitespace from the field names
-        readCSV = csv.DictReader((line.replace("\0", "") for line in reader), delimiter="|")
+        readCSV = csv.DictReader(
+            (line.replace("\0", "") for line in reader), delimiter="|"
+        )
         readCSV.fieldnames = [name.strip() for name in readCSV.fieldnames]
 
         for row in readCSV:
             cleaned_row = {k: v.strip() for k, v in row.items()}
             database[cleaned_row["Drive"]] = Drive(**cleaned_row)
     return database
+
 
 ##############################################################################80
 # Function to save device database to CSV
@@ -174,19 +186,26 @@ def saveDatabase(filepath, data):
 
     with open(filepath, "w") as writer:
         writeCSV = csv.writer(writer)
-        header = "{:^10}|{:^30}|{:^17}|{:^15}|{:^12}|{:^12}|{:^30}".format(*header).split("|", 0)
+        header = "{:^10}|{:^30}|{:^17}|{:^15}|{:^12}|{:^12}|{:^30}".format(
+            *header
+        ).split("|", 0)
         writeCSV.writerow(header)
 
         for mac, details in data.items():
             # Parse the LastHeard date and update the status if it"s more than 30 days ago
-            lastHeard = datetime.strptime(details.LastHeard, "%Y%m%d%H%M")  # Adjust the format if different
+            lastHeard = datetime.strptime(
+                details.LastHeard, "%Y%m%d%H%M"
+            )  # Adjust the format if different
 
             if lastHeard < thirtyDaysAgo:
                 details = details._replace(Status="inactive")
 
-            details = "{:^10}|{:<30}|{:>17}|{:^15}|{:>12}|{:>12}|{:<30}".format(*details).split("|", 0)
+            details = "{:^10}|{:<30}|{:>17}|{:^15}|{:>12}|{:>12}|{:<30}".format(
+                *details
+            ).split("|", 0)
             writeCSV.writerow(details)
     return True
+
 
 ##############################################################################80
 # Parse scan to determine new devices, update devices.csv
@@ -196,7 +215,18 @@ def processScan(scan, database):
     for device in scan:
         mac = device["mac"]
         ip = device["ip"]
-        device = database.get(mac, Device(Status="intruder", Name="unknown", MAC=mac, IP=ip, FirstHeard=SCANID, LastHeard=SCANID, Vendor="unknown"))
+        device = database.get(
+            mac,
+            Device(
+                Status="intruder",
+                Name="unknown",
+                MAC=mac,
+                IP=ip,
+                FirstHeard=SCANID,
+                LastHeard=SCANID,
+                Vendor="unknown",
+            ),
+        )
 
         if device.Status == "inactive":
             device = device._replace(Status="resurfaced")
@@ -215,6 +245,7 @@ def processScan(scan, database):
 
     return database
 
+
 ##############################################################################80
 # Pretty print device details
 ##############################################################################80
@@ -225,10 +256,13 @@ def processNewDevices(database):
     message = "<b>New devices:</b>"
     for mac, device in database.items():
         if device.Status != "allowed":
-            cPrint(f"Device detected: {device.MAC} by {device.Vendor} on {device.IP}", "RED")
+            cPrint(
+                f"Device detected: {device.MAC} by {device.Vendor} on {device.IP}",
+                "RED",
+            )
             newDevices += 1
             ip, vendor = device.IP, device.Vendor
-            vendor = f"<font color="#ff4d3e">{vendor}</font>" if vendor == "unknown" else vendor
+            vendor = f"<font color="  # ff4d3e">{vendor}</font>" if vendor == "unknown" else vendor
             type = "detected" if device.Status == "intruder" else "resurfaced"
             message += f"\n\t - {mac} {type} on {ip} by {vendor}."
 
@@ -243,6 +277,7 @@ def processNewDevices(database):
             sendNotification(subject, message)
     else:
         cPrint("No new devices found.", "BLUE")
+
 
 ##############################################################################80
 # Begin main execution
@@ -261,10 +296,10 @@ def main():
             aggregated[drive] = health
 
     for raid in RAIDS:
-       alert, health = queryMDADM(raid)
-       if alert > 0:
-           noAlerts = False
-           aggregated[raid] = health
+        alert, health = queryMDADM(raid)
+        if alert > 0:
+            noAlerts = False
+            aggregated[raid] = health
 
     data = loadDatabase(datapath)
 
@@ -285,12 +320,15 @@ def main():
             text += sForm.format("/dev/" + drive, attr, value)
             html += f"<tr><td>/dev/{drive}</td><td>{attr}</td><td>{value}</td></tr>"
 
-    html += f"<tr><td colspan=\"3\">* Pre-fail attributes, replace the disk if > 0</td></tr>"
+    html += (
+        f'<tr><td colspan="3">* Pre-fail attributes, replace the disk if > 0</td></tr>'
+    )
     text += "\n * Pre-fail attributes, replace the disk if > 0"
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
     pingHealth()
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()
