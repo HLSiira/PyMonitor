@@ -36,6 +36,8 @@ def initGlobals():
     global HOSTNAME, SCRIPTNAME, SCANID, CONF
     HOSTNAME = socket.gethostname().title()
     SCRIPTNAME = os.path.basename(sys.argv[0])
+    SCRIPTNAME = os.path.splitext(SCRIPTNAME)[0]
+
     SCANID = datetime.now().strftime("%Y%m%d%H%M")
     CONF = loadConfig()
     
@@ -94,6 +96,23 @@ def loadConfig(filename="data/config.json"):
     with open(filename, "r") as f:
         data = json.load(f)
     return data
+
+##############################################################################80
+# Using Pushover credentials, send a notification
+##############################################################################80
+def pingHealth(uuid = False):
+    # Ensure the 'healthChecks' key is present in the CONF dictionary
+    healthChecks = CONF.get("healthChecks")
+    
+    # Check if the subkey 'SCRIPTNAME' is present
+    if not uuid and healthChecks and SCRIPTNAME in healthChecks:
+        uuid = healthChecks[SCRIPTNAME]
+
+    if not uuid:
+        return
+
+    response = requests.post(f"https://hc-ping.com/{uuid}")
+    return response.status_code
 
 ##############################################################################80
 # Using Pushover credentials, send a notification
