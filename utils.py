@@ -22,6 +22,8 @@ import json
 import argparse
 
 from datetime import datetime
+import sys
+import traceback
 
 ##############################################################################80
 # Global variables
@@ -39,14 +41,32 @@ def initGlobals():
     SCRIPTNAME = os.path.basename(sys.argv[0])
     SCRIPTNAME = os.path.splitext(SCRIPTNAME)[0]
 
+    if len(sys.argv) == 1 or "d" not in sys.argv[1]:
+        # Set the global exception handler
+        sys.excepthook = globalExceptionHandler
+
     SCANID = datetime.now().strftime("%Y%m%d%H%M")
     CONF = loadConfig()
 
 
+##############################################################################80
+# Handle unhandled exceptions by sending an email notification.
+##############################################################################80
+def globalExceptionHandler(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        # Do not handle KeyboardInterrupt exceptions
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+
+    err_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+    sendNotification("Runtime Error", err_msg)
+
+
+##############################################################################80
+# Build default ArgumentParser
+##############################################################################80
 def getBaseParser(description="Default description"):
-    global args
     parser = argparse.ArgumentParser(description=description)
-    # Add common arguments here
     parser.add_argument(
         "-c",
         "--cron",
@@ -81,6 +101,7 @@ COLORS = {
     "RED": "\033[31m",
     "GREEN": "\033[32m",
     "BLUE": "\033[94m",
+    "YELLOW": "\033[93m",
     "RESET": "\033[0m",
 }
 
@@ -128,7 +149,7 @@ def loadConfig(filename="data/config.json"):
 
 
 ##############################################################################80
-# Using Pushover credentials, send a notification
+# Ping HealthChecks.io for script run
 ##############################################################################80
 def pingHealth(uuid=False):
     # Ensure the 'healthChecks' key is present in the CONF dictionary

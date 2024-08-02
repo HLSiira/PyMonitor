@@ -21,7 +21,7 @@
 import os, re, sys
 import math
 import psutil
-from utils import cPrint, getBaseParser, sendNotification, CONF
+from utils import cPrint, getBaseParser, pingHealth, sendNotification, CONF
 
 ##############################################################################80
 # Global variables
