@@ -55,6 +55,7 @@ scanpath = "data/scanlog.xml"
 datapath = "data/devices.csv"
 netRange = "192.168.1.1/24"
 thirtyDaysAgo = datetime.now() - timedelta(days=30)
+oneHourAgo = datetime.now() - timedelta(hours=1)
 
 
 ##############################################################################80
@@ -157,10 +158,12 @@ def saveDatabase(filepath, data):
 
         for mac, details in data.items():
             # Parse the LastHeard date and update the status if it"s more than 30 days ago
-            # lastHeard = datetime.strptime(details.LastHeard, "%Y%m%d%H%M")  # Adjust the format if different
+            lastHeard = datetime.strptime(
+                details.LastHeard, "%Y%m%d%H%M"
+            )  # Adjust the format if different
 
-            # if lastHeard < thirtyDaysAgo:
-            #    details = details._replace(Status="inactive")
+            if details.Status == "allowed" and lastHeard < thirtyDaysAgo:
+                details = details._replace(Status="inactive")
 
             details = "{:^10}|{:<30}|{:>17}|{:^15}|{:>12}|{:>12}|{:<30}".format(
                 *details
@@ -195,6 +198,7 @@ def processScan(scan, database):
     for device in scan:
         mac = device["mac"]
         ip = device["ip"]
+
         device = database.get(
             mac,
             Device(
@@ -208,10 +212,10 @@ def processScan(scan, database):
             ),
         )
 
-        #        if device.Status == "inactive":
-        #            device = device._replace(Status="resurfaced")
-        #        elif device.Status == "resurfaced":
-        #            device = device._replace(Status="active")
+        if device.Status == "inactive":
+            device = device._replace(Status="allowed")
+        # elif device.Status == "resurfaced":
+        #     device = device._replace(Status="active")
 
         vendor = device.Vendor
         if vendor == "unknown":
@@ -239,7 +243,10 @@ def processNewDevices(database):
     newDevices = 0
     message = "<b>New devices:</b>"
     for mac, device in database.items():
-        if device.Status not in "allowed":
+        lastHeard = datetime.strptime(
+            device.LastHeard, "%Y%m%d%H%M"
+        )  # Adjust the format if different
+        if device.Status not in ["allowed", "inactive"] and lastHeard > oneHourAgo:
             cPrint(
                 f"Device detected: {device.MAC} by {device.Vendor} on {device.IP}",
                 "RED",
