@@ -33,41 +33,12 @@ parser = getBaseParser(
 )
 args = parser.parse_args()
 datapath = "data/domains.csv"
+configs = "/etc/apache2/sites-available/"
 TM30 = datetime.now() - timedelta(days=30)  # 30 days ago
 TP30 = datetime.now() + timedelta(days=30)  # 30 days from now
 TP90 = datetime.now() + timedelta(days=90)  # 90 days from now
 
 Domain = namedtuple("Domain", ("status lastActive expires"))
-
-
-##############################################################################80
-# Combine subdomains into a more digestable format
-##############################################################################80
-def combineSubdomains(domains):
-    cPrint(f"Combining subdomains...", "BLUE") if args.debug else None
-    domainGroups = {}
-    for domain in domains:
-        # Extract the main domain and subdomain part
-        parts = domain.split(".")
-        mainDomain = ".".join(parts[-2:])
-        subdomain = ".".join(parts[:-2])
-
-        if mainDomain not in domainGroups:
-            domainGroups[mainDomain] = set()
-
-        if subdomain and subdomain != "www":
-            domainGroups[mainDomain].add(subdomain)
-
-    combined = []
-    for mainDomain, subdomains in domainGroups.items():
-        if subdomains:
-            subdomainsStr = ", ".join(sorted(subdomains))
-            mainDomain = f"{mainDomain} <i>(+{subdomainsStr})</i>"
-
-        combined.append(mainDomain)
-
-    return sorted(combined, key=lambda d: d.split(" ", 1)[0])
-
 
 ##############################################################################80
 # Pull certificate details from Certbot
@@ -85,7 +56,6 @@ def getCertificateDetails():
     for cert in certOutput.split("Certificate Name:")[1:]:
         name = re.search(r"^\s*(\S+)", cert).group(1)
         domains = re.search(r"Domains:\s*(.+)", cert).group(1).strip().split()
-        # domains = combineSubdomains(domains)
         expiry = re.search(r"Expiry Date:.*?(\d{4}-\d{2}-\d{2})", cert).group(1)
         expiry = datetime.strptime(expiry, "%Y-%m-%d").strftime(
             "%Y%m%d"
@@ -166,18 +136,66 @@ def saveDatabase(filepath, data):
     with open(filepath, "w") as writer:
         writeCSV = csv.writer(writer)
         header = ["Domain", "Status", "LastActive", "Expires"]
-        header = "{:^30}|{:^10}|{:^12}|{:^12}".format(*header).split("|", 0)
+        header = "{:^20}|{:^10}|{:^12}|{:^12}".format(*header).split("|", 0)
         writeCSV.writerow(header)
 
         for domain, tuple in data.items():
             details = [domain, tuple.status, tuple.lastActive, tuple.expires]
-            details = "{:>30}|{:^10}|{:>12}|{:>12}".format(*details).split("|", 0)
+            details = "{:>19} |{:^10}|{:>12}|{:>12}".format(*details).split("|", 0)
             writeCSV.writerow(details)
     return True
 
 
+##############################################################################80
+# Function to remove old certificates on file inside the configuration files
+##############################################################################80
+def cleanUpConfigs(database):
+    cPrint("Cleaning up config files...", "BLUE") if args.debug else None
+    for domain in database:
+        config = f"{configs}{domain}.conf"
+        if not os.path.exists(config):
+            domain = domain.lstrip("www.")  # Remove 'www.' from the domain
+            config = f"{configs}{domain}.conf"
+            if not os.path.exists(config):
+                cPrint(
+                    f"Config file {domain} does not exist.", "RED"
+                ) if args.debug else None
+                return
+
+        with open(config, "r") as file:
+            lines = file.readlines()
+
+        formatted_lines = []
+        indent_level = 0
+
+        for line in lines:
+            stripped_line = line.strip()
+
+            # Adjust indent level based on the line content
+            if re.match(r"</\w+>", stripped_line):  # Closing tag
+                indent_level -= 1
+
+            # Apply indentation
+            if stripped_line:  # Apply indentation only if the line is not blank
+                formatted_lines.append("    " * indent_level + stripped_line)
+            else:
+                formatted_lines.append("")
+
+            if re.match(r"<\w+[^>]*>", stripped_line):  # Opening tag
+                indent_level += 1
+
+        with open(config, "w") as file:
+            file.write("\n".join(formatted_lines) + "\n")
+
+        cPrint(f"Cleaned {config} config.", "BLUE") if args.debug else None
+
+
+##############################################################################80
+# Function to install new certiicates in the configuration files
+##############################################################################80
 def installCert(domain):
     cPrint(f"Installing cert for {domain}...", "BLUE") if args.debug else None
+
     command = [
         "sudo",
         "certbot",
@@ -186,16 +204,18 @@ def installCert(domain):
         domain,
         "--non-interactive",
     ]
+
     try:
-        return subprocess.run(
+        result = subprocess.run(
             command, check=True, capture_output=True, text=True, timeout=600
         )
+        return "Successfully" in result.stdout  # Check for success message
     except subprocess.CalledProcessError as e:
-        (
-            cPrint(f"Certbot installation error for {domain}: {e}", "RED")
-            if args.debug
-            else None
-        )
+        cPrint(
+            f"Certbot installation error for {domain}: {e}", "RED"
+        ) if args.debug else None
+        cPrint(f"Output: {e.output}", "RED") if args.debug else None
+        cPrint(f"Error: {e.stderr}", "RED") if args.debug else None
         return False
 
 
@@ -223,8 +243,9 @@ def requestCert(domain):
         + ["--cert-name", domain]
     )
 
-    if args.test:
-        return print(" ".join(command))
+    if True and args.test:
+        print(" ".join(command))
+        return True
 
     try:
         return subprocess.run(
@@ -332,13 +353,21 @@ def main():
         database = getActiveDomains(database)
         database = dict(sorted(database.items()))
 
+        # Clean up all old references before processing any certs
+        cleanUpConfigs(database)
+
         for domain, tuple in database.items():
+            cPrint(f"Processing {domain}...", "BLUE") if args.debug else None
             if tuple.status == "new" and requestCert(domain):
-                installCert(domain)
-                message.append(f"\n\t- Activated {domain}")
-                tuple = tuple._replace(
-                    expires=TP90.strftime("%Y%m%d%H%M"), status="active"
-                )
+                if installCert(domain):  # Ensure installation after requesting new cert
+                    message.append(f"\n\t- Activated {domain}")
+                    tuple = tuple._replace(
+                        expires=TP90.strftime("%Y%m%d%H%M"), status="active"
+                    )
+                else:
+                    cPrint(
+                        f"Failed to install cert for {domain}", "RED"
+                    ) if args.debug else None
             elif tuple.status == "inactive" and revokeCert(domain):
                 message.append(f"\n\t- Revoked {domain}")
                 tuple = tuple._replace(status="revoked")
