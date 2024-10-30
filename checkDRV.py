@@ -41,8 +41,11 @@ args = parser.parse_args()
 # Configurations
 ##############################################################################80
 datapath = CONF["drives"]["storagePath"]
-Drive = namedtuple("Drive", "Serial Model Capacity FirstHeard LastHeard Lifetime CurTemp Cycles RALCs")
+Drive = namedtuple(
+    "Drive", "Serial Model Capacity FirstHeard LastHeard Lifetime CurTemp Cycles RALCs"
+)
 Health = namedtuple("Health", "SCANID Attributes")
+
 
 ##############################################################################80
 # Helper: Convert to display human readable sizes
@@ -55,19 +58,20 @@ def bytesToHuman(bytes):
     p = math.pow(1024, i)
     s = round(bytes / p)
     return str(s) + sizes[i]
-    
+
+
 def hoursToHuman(hours):
     days = hours // 24
     remaining_hours = hours % 24
     if days > 0:
         return f"{days}d {remaining_hours}h"
-    return f"{remaining_hours}h"    
+    return f"{remaining_hours}h"
 
 
 def findDrives():
     # Lists all SATA and NVMe drives using glob
-    sata_drives = glob.glob('/dev/sd?')
-    nvme_drives = glob.glob('/dev/nvme?n1')
+    sata_drives = glob.glob("/dev/sd?")
+    nvme_drives = glob.glob("/dev/nvme?n1")
     return sata_drives + nvme_drives
 
 
@@ -96,18 +100,25 @@ def findDrives():
 # 198  | Offline_Uncorrectable         | Number of uncorrectable errors when read in offline mode, indicating bad sectors.
 # 199  | UDMA_CRC_Error_Count          | Count of CRC errors during Ultra DMA mode, can indicate transmission issues.
 
+
 ##############################################################################80
 def querySMART(drive):
     cPrint(f"Querying SMART for {drive}...", "BLUE") if args.debug else None
     serial = False
-    
-    cPrint(output, "BLUE") if args.debug else None  # Print the SMART data if debugging is enabled
+
+    (
+        cPrint(output, "BLUE") if args.debug else None
+    )  # Print the SMART data if debugging is enabled
 
     try:
         # output = subprocess.check_output(["/usr/sbin/smartctl", "-a", drive], text=True)
-        output = subprocess.check_output(["/usr/sbin/smartctl", "-a", drive], stderr=subprocess.STDOUT, text=True)
-        
-        cPrint(output, "BLUE") if args.debug else None  # Print the SMART data if debugging is enabled
+        output = subprocess.check_output(
+            ["/usr/sbin/smartctl", "-a", drive], stderr=subprocess.STDOUT, text=True
+        )
+
+        (
+            cPrint(output, "BLUE") if args.debug else None
+        )  # Print the SMART data if debugging is enabled
 
         # Initialize the return structure
         drive = {}
@@ -122,28 +133,56 @@ def querySMART(drive):
                 drive["model"] = line.split(":")[1].strip()
             elif "User Capacity:" in line:
                 # capacity_match = re.search(r'\[.*?(\d+,\d+,\d+|\d+.\d+|\d+) bytes\]', line)
-                capacity_match = re.search(r'(\d+,\d+|\d+)', line.replace(',', ''))
+                capacity_match = re.search(r"(\d+,\d+|\d+)", line.replace(",", ""))
                 if capacity_match:
-                    drive["capacity"] = bytesToHuman(int(capacity_match.group(0).replace(',', '')))
+                    drive["capacity"] = bytesToHuman(
+                        int(capacity_match.group(0).replace(",", ""))
+                    )
                 else:
                     drive["capacity"] = None
             elif "Power_On_Hours" in line:
                 lifetime_hours = int(line.split()[-1])
                 drive["lifetime"] = hoursToHuman(lifetime_hours)
             elif "Temperature_Celsius" in line:
-                temp_match = re.search(r'(\d+)', line.split()[-1])  # Use regex to find the first group of digits
+                temp_match = re.search(
+                    r"(\d+)", line.split()[-1]
+                )  # Use regex to find the first group of digits
                 if temp_match:
-                    drive["maxTemp"] = int(temp_match.group(0))  # Convert the first group of digits to int
+                    drive["maxTemp"] = int(
+                        temp_match.group(0)
+                    )  # Convert the first group of digits to int
                 else:
-                    drive["maxTemp"] = None  # Handle cases where no temperature is found
+                    drive["maxTemp"] = (
+                        None  # Handle cases where no temperature is found
+                    )
             elif "Power_Cycle_Count" in line:
                 drive["powerCycles"] = int(line.split()[-1])
             elif "Reallocated_Sector_Ct" in line:
                 drive["reallocations"] = int(line.split()[-1])
 
             # Parse S.M.A.R.T. attributes
-            attributes = ["1", "3", "5", "7", "9", "10", "12", "187", "188", "189", "190", "191", "192", "193", "194", "195", "196", "197", "198" "199"]
-            match = re.match(r'^\s*(\d+)\s+(\w+[\w\s]*\w+)\s+.*\s+(\d+)\s+.*$', line)
+            attributes = [
+                "1",
+                "3",
+                "5",
+                "7",
+                "9",
+                "10",
+                "12",
+                "187",
+                "188",
+                "189",
+                "190",
+                "191",
+                "192",
+                "193",
+                "194",
+                "195",
+                "196",
+                "197",
+                "198" "199",
+            ]
+            match = re.match(r"^\s*(\d+)\s+(\w+[\w\s]*\w+)\s+.*\s+(\d+)\s+.*$", line)
             if match:
                 attr_id, attr_name, raw_value = match.groups()
                 try:
@@ -152,7 +191,7 @@ def querySMART(drive):
                         health[attr_id] = value
                 except ValueError:
                     continue
-                
+
         # return drive, health
         return drive
 
@@ -160,13 +199,16 @@ def querySMART(drive):
         cPrint(f"SMART query failed for {drive}: {e.output}", "RED")
         return False
 
+
 ##############################################################################80
 # Queries RAID status using mdadm.
 ##############################################################################80
 def queryMDADM(raid):
     cPrint("Querying MDADM...", "BLUE") if args.debug else None
-    
-    p = subprocess.Popen(["/usr/sbin/mdadm", "--detail", "/dev/" + raid], stdout=subprocess.PIPE)
+
+    p = subprocess.Popen(
+        ["/usr/sbin/mdadm", "--detail", "/dev/" + raid], stdout=subprocess.PIPE
+    )
     (output, err) = p.communicate()
     output = output.decode("utf-8")
 
@@ -192,8 +234,9 @@ def queryMDADM(raid):
 
         if "/dev/" in line:
             line = line.split(" ")
-            if len(line) < 3: continue
-            device = [i for i, s in enumerate(line) if '/dev' in s][0]
+            if len(line) < 3:
+                continue
+            device = [i for i, s in enumerate(line) if "/dev" in s][0]
             health[line[device]] = "/".join(line[4:device])
 
     return alert, health
@@ -210,13 +253,16 @@ def loadDatabase(filepath):
 
     with open(filepath, mode="r") as reader:
         # Create a DictReader, and then strip whitespace from the field names
-        readCSV = csv.DictReader((line.replace("\0", "") for line in reader), delimiter="|")
+        readCSV = csv.DictReader(
+            (line.replace("\0", "") for line in reader), delimiter="|"
+        )
         readCSV.fieldnames = [name.strip() for name in readCSV.fieldnames]
 
         for row in readCSV:
             cleaned_row = {k: v.strip() for k, v in row.items()}
             database[cleaned_row["Serial"]] = Drive(**cleaned_row)
     return database
+
 
 ##############################################################################80
 # Function to save device database to CSV
@@ -227,16 +273,23 @@ def saveDatabase(filepath, database):
 
     with open(filepath, "w") as writer:
         writeCSV = csv.writer(writer)
-        header = "{:^16}|{:^22}|{:^8}|{:^14}|{:^14}|{:^10}|{:^8}|{:^8}|{:^6}".format(*header).split("|", 0)
+        header = "{:^16}|{:^22}|{:^8}|{:^14}|{:^14}|{:^10}|{:^8}|{:^8}|{:^6}".format(
+            *header
+        ).split("|", 0)
         writeCSV.writerow(header)
 
         for serial, drive in database.items():
             # Parse the LastHeard date and update the status if it"s more than 30 days ago
-            lastHeard = datetime.strptime(drive.LastHeard, "%Y%m%d%H%M")  # Adjust the format if different
+            lastHeard = datetime.strptime(
+                drive.LastHeard, "%Y%m%d%H%M"
+            )  # Adjust the format if different
 
-            row = "{:<16}|{:<22}|{:>8}|{:^14}|{:^14}|{:^10}|{:>8}|{:>8}|{:<6}".format(*drive).split("|", 0)
+            row = "{:<16}|{:<22}|{:>8}|{:^14}|{:^14}|{:^10}|{:>8}|{:>8}|{:<6}".format(
+                *drive
+            ).split("|", 0)
             writeCSV.writerow(row)
     return True
+
 
 ##############################################################################80
 # Parse scan to determine new devices, update devices.csv
@@ -247,25 +300,30 @@ def processDrives(drives, database):
         drive = drives[drive]
         serial = drive["serial"]
 
-        device = database.get(serial, Drive(
-                        Serial=serial,
-                        Model=drive["model"],
-                        Capacity=drive["capacity"],
-                        FirstHeard=SCANID,
-                        LastHeard=SCANID,
-                        Lifetime=drive["lifetime"],
-                        CurTemp=drive["maxTemp"],
-                        Cycles=drive["powerCycles"],
-                        RALCs=drive["reallocations"]))
+        device = database.get(
+            serial,
+            Drive(
+                Serial=serial,
+                Model=drive["model"],
+                Capacity=drive["capacity"],
+                FirstHeard=SCANID,
+                LastHeard=SCANID,
+                Lifetime=drive["lifetime"],
+                CurTemp=drive["maxTemp"],
+                Cycles=drive["powerCycles"],
+                RALCs=drive["reallocations"],
+            ),
+        )
 
         # Update data to the latest scan
         device = device._replace(LastHeard=SCANID)
         print(device)
-        
+
         # Update the database with the new or updated device
         database[serial] = device
 
     return database
+
 
 ##############################################################################80
 # Pretty print device details
@@ -277,10 +335,13 @@ def processNewDevices(database):
     message = "<b>New devices:</b>"
     for mac, device in database.items():
         if device.Status != "allowed":
-            cPrint(f"Device detected: {device.MAC} by {device.Vendor} on {device.IP}", "RED")
+            cPrint(
+                f"Device detected: {device.MAC} by {device.Vendor} on {device.IP}",
+                "RED",
+            )
             newDevices += 1
             ip, vendor = device.IP, device.Vendor
-            vendor = f"<font color="#ff4d3e">{vendor}</font>" if vendor == "unknown" else vendor
+            vendor = f"<font color="  # ff4d3e">{vendor}</font>" if vendor == "unknown" else vendor
             type = "detected" if device.Status == "intruder" else "resurfaced"
             message += f"\n\t - {mac} {type} on {ip} by {vendor}."
 
@@ -295,6 +356,7 @@ def processNewDevices(database):
             sendNotification(subject, message)
     else:
         cPrint("No new devices found.", "BLUE")
+
 
 ##############################################################################80
 # Begin main execution
@@ -318,12 +380,13 @@ def main():
     #   aggregated[raid] = health
 
     data = loadDatabase(datapath)
-    
+
     data = processDrives(aggregated, data)
     saveDatabase(datapath, data)
 
     cPrint(f"\t...complete!!!", "BLUE") if args.debug else None
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

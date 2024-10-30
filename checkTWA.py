@@ -123,11 +123,8 @@ class TinyWebsiteAuditor:
         print(f"Error: {message}", file=sys.stderr)
         exit(1)
 
-    def warn(self, message):
-        print(f"Warn: {message}", file=sys.stderr)
-
     def output(self, status, message, code=None):
-        print(f"\t{status}({self.domain}): {message}")
+        print(f"\t{status}: {message}")
 
     def probe(self, port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -846,6 +843,7 @@ class TinyWebsiteAuditor:
         print(
             f"{self.score} {self.npasses} {self.nmehs} {self.nfailures} {self.nunknowns} {self.nskips} {self.totally_screwed}"
         )
+
 
 def main():
     parser = argparse.ArgumentParser(description="twa: a tiny website auditing script")

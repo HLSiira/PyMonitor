@@ -28,154 +28,163 @@ from utils import cPrint, getBaseParser, pingHealth, sendNotification, CONF, HOS
 # Global variables
 ##############################################################################80
 parser = getBaseParser("Creates backups and sends to cloud storage using rClone.")
-parser.add_argument(
-    "-s",
-    "--skipCompress",
-    action="store_true",
-    help="Skip compressing, only backup and cleanup.",
-)
+parser.add_argument("--noArchive", action="store_true", help="Skip creating tarbell archives.")
+parser.add_argument("--noEncrypt", action="store_true", help="Skip encrypting tarbell archives.")
+parser.add_argument("--noClean", action="store_true", help="Skip deleting older tarbell archives.")
+
+parser.add_argument("--noDiff", action="store_true", help="Skip.")
+parser.add_argument("--noPrune", action="store_true", help="Skip.")
 args = parser.parse_args()
+
+# Define valid compressions and the corresponding tar options
+COMP_METHODS = {
+    "gzip": (".gz", "-zcf"),   # Fastest, low compression
+    "zstd": (".zst", "-zstd"), # Fast, medium compression
+    "xz": (".xz", "-cJf")      # Slowest, highest compression
+}
 
 ##############################################################################80
 # Configuration Settings
 ##############################################################################80
-BACKUPPATH = CONF["backup"]["backupPath"]
+ARCHS = CONF["backup"]["arch_path"]
+DIFFS = CONF["backup"]["diff_path"]
 
+def exec(cmd): return subprocess.run(cmd, check=True, capture_output=True)
 
 ##############################################################################80
 # Create backup directory
 ##############################################################################80
-def createDirectory(name):
+def create_directory(name):
     cPrint(f"Creating directory for {name}...", "BLUE") if args.debug else None
-    backup = f"{BACKUPPATH}/{name}"
     try:
-        os.makedirs(backup, exist_ok=True)
-        return False, f"Directory creation successful for {name}"
+        archive_path = f"{ARCHS}/{name}"
+        if os.path.exists(archive_path):
+            os.makedirs(archive_path, exist_ok=True)
+            return 200, f"Directory creation successful: {name}"
+        else:
+            return 100, f"Directory already exists: {name}"
     except subprocess.CalledProcessError:
-        return True, f"Directory creation failed on {name}"
-
+        return 400, f"Directory creation failed on {name}"
 
 ##############################################################################80
 #
 ##############################################################################80
-def compress(name, source, compression="xz"):
-    cPrint(f"Compressing {name}...", "BLUE") if args.debug else None
+def create_archive(name, source, method="xz"):
+    cPrint(f"Creating archive for {name}...", "BLUE") if args.debug else None
 
-    weeknum = datetime.now().strftime("%V")
     try:
-        archive = f"{name}/{name}-WK{weeknum}"
-        if compression == "gzip":  # Fastest, low compression
-            archive += ".tar.gz"
-            subprocess.run(
-                [
-                    "tar",
-                    "--exclude-vcs",
-                    "-zcf",
-                    f"{BACKUPPATH}/{archive}",
-                    "-C",
-                    source,
-                    ".",
-                ],
-                check=True,
-            )
+        if method not in COMP_METHODS:
+            return 400, f"Unrecognized compression format: {name} ({method})"
 
-        elif compression == "zstd":  # Fast, medium compression
-            archive += ".tar.zst"
-            subprocess.run(
-                [
-                    "tar",
-                    "--exclude-vcs",
-                    "--zstd",
-                    "-cf",
-                    f"{BACKUPPATH}/{archive}",
-                    "-C",
-                    source,
-                    ".",
-                ],
-                check=True,
-            )
+        weeknum = datetime.now().strftime("%V")
+        ext, flags = COMP_METHODS[method]
+        archive = f"{name}/{name}-WK{weeknum}.tar{ext}"        
 
-        elif compression == "xz":  # Slowest, highest compression
-            archive += ".tar.xz"
-            subprocess.run(
-                [
-                    "tar",
-                    "--exclude-vcs",
-                    "-cJf",
-                    f"{BACKUPPATH}/{archive}",
-                    "-C",
-                    source,
-                    ".",
-                ],
-                check=True,
-            )
+        cmd = ["tar", "--exclude-vcs", flags, f"{ARCHS}/{archive}", "-C", source, "."]
+        exec(cmd)
 
-        else:
-            return True, f"Unrecognized compression format on {name}"
-
-        cPrint(f"Encrypting {name}...", "BLUE") if args.debug else None
-        if os.path.exists(f"{BACKUPPATH}/{archive}.gpg"):
-            os.remove(f"{BACKUPPATH}/{archive}.gpg")
-        subprocess.run(
-            [
-                "gpg",
-                "--symmetric",
-                "--cipher-algo",
-                "AES256",
-                "--batch",
-                "--passphrase",
-                f"{CONF['backup']['password']}",
-                "-o",
-                f"{BACKUPPATH}/{archive}.gpg",
-                f"{BACKUPPATH}/{archive}",
-            ],
-            check=True,
-        )
-        if os.path.exists(f"{BACKUPPATH}/{archive}"):
-            os.remove(f"{BACKUPPATH}/{archive}")
-
-        return False, f"{archive} created and stored"
+        return 200, f"Tarbell archive created: {name}"
     except subprocess.CalledProcessError:
-        return True, f"TAR command failed on {name}"
+        return 400, f"TAR cmd failed: {name}"
+        
+##############################################################################80
+#
+##############################################################################80
+def encrypt_archive(name, source, method="xz"):
+    cPrint(f"Encrypting archive for {name}...", "BLUE") if args.debug else None
+    try:
+        if method not in COMP_METHODS:
+            return 400, f"Unrecognized compression format: {name} ({method})"
+        weeknum = datetime.now().strftime("%V")
+        ext, flags = COMP_METHODS[method]
+        archive = f"{name}/{name}-WK{weeknum}.tar{ext}"
 
+        if os.path.exists(f"{ARCHS}/{archive}.gpg"):
+            os.remove(f"{ARCHS}/{archive}.gpg")
+
+        cmd = [
+            "gpg", "--symmetric", "--cipher-algo", "AES256",
+            "--batch", "--passphrase-file", "data/password",
+            "-o", f"{ARCHS}/{archive}.gpg", f"{ARCHS}/{archive}",
+        ]
+        exec(cmd)
+
+        if os.path.exists(f"{ARCHS}/{archive}"):
+            os.remove(f"{ARCHS}/{archive}")
+
+        return 200, f"Tarbell archive encrypted: {name}"
+    except subprocess.CalledProcessError:
+        return 400, f"Encryption failed: {name}"
 
 ##############################################################################80
 # Delete files older than the expiry period
 ##############################################################################80
-def cleanUp(name, deleteAfter):
-    (
-        cPrint(f"Deleting archives older than {deleteAfter} days...", "BLUE")
-        if args.debug
-        else None
-    )
-    backup = f"{BACKUPPATH}/{name}"
-    try:
-        subprocess.run(
-            ["find", f"{backup}", "-type", "f", "-mtime", f"+{deleteAfter}", "-delete"],
-            check=True,
-        )
-        return False, f"Cleanup successful for {name}"
-    except subprocess.CalledProcessError:
-        return True, f"Cleanup failed on {name}"
+def clean_archive(name, deleteAfter):
+    cPrint(f"Cleaning archives for {name}...", "BLUE") if args.debug else None
 
+    try:
+        archive_path = f"{ARCHS}/{name}"
+        if not os.path.exists(archive_path):
+            return 404, f"Cleanup failed on {name}; path missing"
+        cPrint(f"Deleting archives older than {deleteAfter} days...", "BLUE") if args.debug else None
+        cmd = ["find", f"{archive_path}", "-type", "f", "-mtime", f"+{deleteAfter}", "-delete"]
+        exec(cmd)
+
+        return 200, f"Archive cleanup successful: {name}"
+    except subprocess.CalledProcessError:
+        return 400, f"Archive cleanup failed: {name}"
+
+##############################################################################80
+#
+##############################################################################80
+def update_differential(name, source):
+    cPrint(f"Creating differential on {name}...", "BLUE") if args.debug else None
+    try:
+        repo_path = f"{DIFFS}/{name}"
+        # Backup cmd using Restic
+        if not os.path.exists(repo_path):
+            exec(["restic", "-r", repo_path, "init", "--password-file", "data/password"])
+
+        cmd = ["restic", "-r", repo_path, "backup", source, "--password-file", "data/password"]
+        exec(cmd)
+        return 200, f"Differential backup successful: {name}"
+    except subprocess.CalledProcessError:
+        return 400, f"Differential backup failed: {name}"
+
+##############################################################################80
+# Delete files older than the expiry period
+##############################################################################80
+def prune_differential(name, deleteAfter):
+    cPrint(f"Pruning up differentials for {name}...", "BLUE") if args.debug else None
+
+    try:
+        differential_path = f"{DIFFS}/{name}"
+        cmd = [
+            "restic", "-r", differential_path,
+            "forget", "--keep-daily", deleteAfter, "--prune",
+        #         "--keep-daily", "30",
+        #         "--keep-weekly", "4",
+        #         "--keep-monthly", "12",
+            "--password-file", "data/password"
+        ]
+        exec(cmd)
+        return 200, f"Differential pruned: {name}"
+    except subprocess.CalledProcessError:
+        return 400, f"Cleanup failed on {name}"
 
 ##############################################################################80
 # rClone to cloud storage
 ##############################################################################80
 def rCloneToCloud():
     cPrint(f"rCloning to cloud storage...", "BLUE") if args.debug else None
-    cloudPath = CONF["backup"]["cloudPath"] + HOSTNAME
-    method = (
-        CONF["backup"]["rCloneMethod"] if "rCloneMethod" in CONF["backup"] else "copy"
-    )
     try:
-        subprocess.run(
-            ["rclone", method, BACKUPPATH, cloudPath], check=True, capture_output=True
-        )
-        return False, "RClone sync successful"
+        cloud_path = CONF["backup"]["cloud_path"] + HOSTNAME
+        method = CONF["backup"]["rCloneMethod"] if "rCloneMethod" in CONF["backup"] else "copy"
+        exec(["rclone", method, ARCHS, f"{cloud_path}/archs"])
+        exec(["rclone", method, DIFFS, f"{cloud_path}/diffs"])
+        return 200, "RClone sync successful"
     except subprocess.CalledProcessError:
         return True, "RClone sync failed"
-
 
 ##############################################################################80
 # Begin main execution
@@ -186,27 +195,36 @@ def main():
     deleteAfter = CONF["backup"]["deleteAfter"]
 
     metrics = []
-    for item in CONF["backup"]["items"]:
-        name = item["name"]
-        path = item["path"] if "path" in item else False
+    for name, info in CONF["backup"]["items"].items():
+        path = info["path"] if "path" in info else False
 
-        metrics.append(createDirectory(name))
+        metrics.append(create_directory(name))
 
-        if item["compress"] and not args.skipCompress:
-            metrics.append(compress(name, path))
+        if "tar" in info["steps"] and not args.noArchive:
+            metrics.append(create_archive(name, path))
 
-        if item["cleanup"]:
-            metrics.append(cleanUp(name, deleteAfter))
+        if "enc" in info["steps"] and not args.noEncrypt:
+            metrics.append(encrypt_archive(name, deleteAfter))
+
+        if "cln" in info["steps"] and not args.noClean:
+            metrics.append(clean_archive(name, deleteAfter))
+            
+        if "dif" in info["steps"] and not args.noDiff:
+            metrics.append(update_differential(name, path))
+
+        if "prn" in info["steps"] and not args.noPrune:
+            metrics.append(update_differential(name, path))
+
 
     metrics.append(rCloneToCloud())
 
     message = "<b>Process status:</b>"
     sendNotice = False
 
-    for warning, state in metrics:
-        if warning:
+    for status, text in metrics:
+        if status > 299:
             sendNotice = True
-        message += f"\n\t- {state}"
+        message += f"\n\t- {text}"
 
     if sendNotice or args.test:
         cPrint(f"Error in backup process, sending notification...", "RED")
