@@ -22,12 +22,14 @@
 import os, sys
 import subprocess
 from datetime import datetime
+import shutil
 from utils import cPrint, getBaseParser, pingHealth, sendNotification, CONF, HOSTNAME
 
 ##############################################################################80
 # Global variables
 ##############################################################################80
 parser = getBaseParser("Creates backups and sends to cloud storage using rClone.")
+parser.add_argument("--noCopy", action="store_true", help="Skip.")
 parser.add_argument("--noArchive", action="store_true", help="Skip creating tarbell archives.")
 parser.add_argument("--noEncrypt", action="store_true", help="Skip encrypting tarbell archives.")
 parser.add_argument("--noClean", action="store_true", help="Skip deleting older tarbell archives.")
@@ -55,10 +57,10 @@ def exec(cmd): return subprocess.run(cmd, check=True, capture_output=True)
 # Create backup directory
 ##############################################################################80
 def create_directory(name):
-    cPrint(f"Creating directory for {name}...", "BLUE") if args.debug else None
+    cPrint(f"Checking directory for {name}...", "BLUE") if args.debug else None
     try:
         archive_path = f"{ARCHS}/{name}"
-        if os.path.exists(archive_path):
+        if not os.path.exists(archive_path):
             os.makedirs(archive_path, exist_ok=True)
             return 200, f"Directory creation successful: {name}"
         else:
@@ -66,6 +68,26 @@ def create_directory(name):
     except subprocess.CalledProcessError:
         return 400, f"Directory creation failed on {name}"
 
+
+##############################################################################80
+#
+##############################################################################80
+def copy_directory(name, source):
+    cPrint(f"Copying directory for {name}...", "BLUE") if args.debug else None
+    dest_path = os.path.join(ARCHS, name)
+    
+    # Define a function to ignore .git directories
+    def ignore_git(dir, files):
+        return [f for f in files if os.path.isdir(os.path.join(dir, f)) and f == '.git']
+    
+    try:
+        # Copy directory content to destination, ignoring .git folders
+        shutil.copytree(source, dest_path, ignore=ignore_git, dirs_exist_ok=True)
+        return 200, f"Directory copied successfully: {name}"
+    
+    except Exception as e:
+        return 400, f"Directory copy failed for {name}: {str(e)}"
+    
 ##############################################################################80
 #
 ##############################################################################80
@@ -90,7 +112,7 @@ def create_archive(name, source, method="xz"):
 ##############################################################################80
 #
 ##############################################################################80
-def encrypt_archive(name, source, method="xz"):
+def encrypt_archive(name, method="xz"):
     cPrint(f"Encrypting archive for {name}...", "BLUE") if args.debug else None
     try:
         if method not in COMP_METHODS:
@@ -145,7 +167,7 @@ def update_differential(name, source):
         if not os.path.exists(repo_path):
             exec(["restic", "-r", repo_path, "init", "--password-file", "data/password"])
 
-        cmd = ["restic", "-r", repo_path, "backup", source, "--password-file", "data/password"]
+        cmd = ["restic", "-r", repo_path, "backup", source, "--password-file", "data/password", "--exclude", "**/.git"]
         exec(cmd)
         return 200, f"Differential backup successful: {name}"
     except subprocess.CalledProcessError:
@@ -170,7 +192,7 @@ def prune_differential(name, deleteAfter):
         exec(cmd)
         return 200, f"Differential pruned: {name}"
     except subprocess.CalledProcessError:
-        return 400, f"Cleanup failed on {name}"
+        return 400, f"Prune failed on {name}"
 
 ##############################################################################80
 # rClone to cloud storage
@@ -180,8 +202,8 @@ def rCloneToCloud():
     try:
         cloud_path = CONF["backup"]["cloud_path"] + HOSTNAME
         method = CONF["backup"]["rCloneMethod"] if "rCloneMethod" in CONF["backup"] else "copy"
-        exec(["rclone", method, ARCHS, f"{cloud_path}/archs"])
-        exec(["rclone", method, DIFFS, f"{cloud_path}/diffs"])
+        exec(["rclone", method, ARCHS, f"{cloud_path}/archives"])
+        exec(["rclone", method, DIFFS, f"{cloud_path}/differentials"])
         return 200, "RClone sync successful"
     except subprocess.CalledProcessError:
         return True, "RClone sync failed"
@@ -192,7 +214,7 @@ def rCloneToCloud():
 def main():
     cPrint(f"Beginning main execution...", "BLUE") if args.debug else None
 
-    deleteAfter = CONF["backup"]["deleteAfter"]
+    deleteAfter = str(CONF["backup"]["deleteAfter"])
 
     metrics = []
     for name, info in CONF["backup"]["items"].items():
@@ -200,11 +222,14 @@ def main():
 
         metrics.append(create_directory(name))
 
+        if "cpy" in info["steps"] and not args.noCopy:
+            metrics.append(copy_directory(name, path))
+
         if "tar" in info["steps"] and not args.noArchive:
             metrics.append(create_archive(name, path))
 
         if "enc" in info["steps"] and not args.noEncrypt:
-            metrics.append(encrypt_archive(name, deleteAfter))
+            metrics.append(encrypt_archive(name))
 
         if "cln" in info["steps"] and not args.noClean:
             metrics.append(clean_archive(name, deleteAfter))
@@ -213,7 +238,7 @@ def main():
             metrics.append(update_differential(name, path))
 
         if "prn" in info["steps"] and not args.noPrune:
-            metrics.append(update_differential(name, path))
+            metrics.append(prune_differential(name, deleteAfter))
 
 
     metrics.append(rCloneToCloud())
