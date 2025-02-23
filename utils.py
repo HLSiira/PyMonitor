@@ -169,7 +169,8 @@ def pingHealth(uuid=False):
 ##############################################################################80
 # Using Pushover credentials, send a notification
 ##############################################################################80
-def sendNotification(subject, message, priority=0):
+def sendNotification(subject, message, priority=0, ttl=None):
+    url = "https://api.pushover.net/1/messages.json"
     if len(sys.argv) > 1 and "q" in sys.argv[1]:
         cPrint(subject)
         cPrint(message)
@@ -177,7 +178,9 @@ def sendNotification(subject, message, priority=0):
 
     userKey = CONF["userKey"]
     apiToken = CONF["apiToken"]
-
+    
+    ttl = ttl or CONF['expiration']
+    
     data = {
         "token": apiToken,
         "user": userKey,
@@ -185,13 +188,12 @@ def sendNotification(subject, message, priority=0):
         "title": f"{HOSTNAME}: {subject}",
         "html": 1,
         "priority": priority,
-        "ttl": CONF["expiration"],
+        "ttl": ttl,
     }
 
-    response = requests.post("https://api.pushover.net/1/messages.json", data=data)
-    return (
-        response.text
-    )  # Returns the API's response which can be useful for debugging or confirmation
+    response = requests.post(url, data=data)
+    # Returns the API's response which can be useful for debugging or confirmation
+    return response.text
 
 
 # Initialization Code
