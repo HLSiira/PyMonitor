@@ -177,7 +177,7 @@ def update_differential(name, source):
 # Delete files older than the expiry period
 ##############################################################################80
 def prune_differential(name, deleteAfter):
-    cPrint(f"Pruning up differentials for {name}...", "BLUE") if args.debug else None
+    cPrint(f"Pruning differentials for {name}...", "BLUE") if args.debug else None
 
     try:
         differential_path = f"{DIFFS}/{name}"
@@ -241,7 +241,7 @@ def main():
             metrics.append(prune_differential(name, deleteAfter))
 
 
-    metrics.append(rCloneToCloud())
+    # metrics.append(rCloneToCloud())
 
     message = "<b>Process status:</b>"
     sendNotice = False
