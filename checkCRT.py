@@ -63,6 +63,7 @@ def loadDatabase(filepath):
         for row in readCSV:
             cRow = {k: v.strip() for k, v in row.items()}
             config = cRow["Config"]
+            
             database[config] = Config(
                 domain="N/A",
                 status=cRow["Status"],
@@ -87,7 +88,7 @@ def saveDatabase(filepath, data):
 
         for config, tuple in data.items():
             lastSeen = tuple.lastSeen.strftime(dateFormat)
-            expires = tuple.expires.strftime(dateFormat)
+            expires = (tuple.expires if tuple.expires else TP90).strftime(dateFormat)
             details = [config, tuple.status, lastSeen, expires]
             details = "{:<19} |{:^10}|{:^10}|{:^10}".format(*details).split("|", 0)
             writeCSV.writerow(details)
@@ -192,10 +193,11 @@ def tryCommand(command, text):
         )
         return "Successfully" in result.stdout  # Check for success message
     except subprocess.CalledProcessError as e:
+        print(e)
         cPrint(f"{text}: {e}", "RED") if args.debug else None
         cPrint(f"Output: {e.output}", "RED") if args.debug else None
         cPrint(f"Error: {e.stderr}", "RED") if args.debug else None
-        return False
+        return "error"
 
 
 ##############################################################################80
@@ -300,8 +302,11 @@ def main():
             status = tuple.status
             lastSeen = tuple.lastSeen
             expires = tuple.expires
+            
+            request = requestCert(domain)
+            print(request)
 
-            if status == "new" and requestCert(domain):
+            if status == "new" and request != "error":
                 # Ensure installation after requesting new cert
                 if installCert(domain):
                     message.append(f"\n\t- Activated {domain}")
