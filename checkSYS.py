@@ -106,7 +106,7 @@ def main():
         cPrint(f"System alert, sending notification...", "RED")
         subject = "System health alert"
 
-        sendNotification(subject, message)
+        sendNotification(subject, message, ttl=600)
     else:
         cPrint("All systems nominal.", "BLUE")
 

@@ -307,7 +307,7 @@ def main():
         subject = f"ISP Speed Alert"
         message = f"ISP: P{ping}, D{download}, U{upload}"
 
-        sendNotification(subject, message)
+        sendNotification(subject, message, ttl=600)
     else:
         cPrint("Speeds within defined boundaries.", "BLUE")
 
